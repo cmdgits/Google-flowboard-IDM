@@ -19,7 +19,14 @@ export type { NodeType };
 
 export type NodeStatus = "idle" | "queued" | "running" | "done" | "error";
 
-export type StoryboardGrid = "2x2" | "3x3";
+// Storyboard grid options.
+//   2x2 → 4 panels (square)
+//   2x3 → 6 panels (rectangular: 2×3 on landscape, 3×2 on portrait)
+//   2x4 → 8 panels (rectangular: 2×4 on landscape, 4×2 on portrait)
+// The rows/cols mapping happens at prompt-build time based on the
+// node's aspectRatio — see resolveStoryboardLayout in
+// frontend/src/lib/storyboardPrompt.ts.
+export type StoryboardGrid = "2x2" | "2x3" | "2x4";
 
 export interface FlowboardNodeData extends Record<string, unknown> {
   type: NodeType;

@@ -5,6 +5,10 @@ import { useGenerationStore } from "../store/generation";
 import { mediaUrl, patchEdge, patchNode, uploadImage, uploadImageFromUrl } from "../api/client";
 import { requestAutoBrief } from "../api/autoBrief";
 import { useReferencesStore } from "../store/references";
+import {
+  normaliseStoryboardGrid,
+  resolveStoryboardLayout,
+} from "../lib/storyboardPrompt";
 
 const ICON: Record<string, string> = {
   character: "◎",
@@ -1425,18 +1429,24 @@ function EditableTextBody({
 // `gen_image` handler with a locked prompt template that asks Flow to render
 // the user's topic as a single composite NxN grid (see
 // frontend/src/lib/storyboardPrompt.ts). Rendering reuses `ImageBody` — up
-// to 4 composite variants in the tile grid — with a small `3×3` / `2×2`
-// corner badge as a reminder of the current layout.
+// to 4 composite variants in the tile grid — with a small `2×2`/`2×3`/`2×4`
+// corner badge (flipped for portrait composites) reminding the user of
+// the active layout.
 
 function StoryboardBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
-  const grid = data.storyboardGrid === "2x2" ? "2×2" : "3×3";
+  // Show the concrete rows × cols (post-orientation flip), not the
+  // user-picker key. So a node with grid="2x3" on a portrait composite
+  // shows "3×2" — matches what Flow actually rendered.
+  const g = normaliseStoryboardGrid(data.storyboardGrid);
+  const { rows, cols } = resolveStoryboardLayout(g, data.aspectRatio);
+  const label = `${rows}×${cols}`;
   return (
     <div className="storyboard-wrap">
       <span
         className="storyboard-grid-badge"
-        title={`Composite layout: ${grid}`}
+        title={`Composite layout: ${label} (${rows * cols} panels)`}
       >
-        {grid}
+        {label}
       </span>
       <ImageBody rfId={rfId} data={data} />
     </div>

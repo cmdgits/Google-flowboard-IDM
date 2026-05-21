@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useGenerationStore } from "../store/generation";
 import { useBoardStore, type StoryboardGrid } from "../store/board";
 import {
+  STORYBOARD_GRIDS,
   buildStoryboardPrompt,
   buildStoryboardVideoPrompt,
+  normaliseStoryboardGrid,
+  totalPanels,
 } from "../lib/storyboardPrompt";
 import {
   useSettingsStore,
@@ -174,7 +177,7 @@ export function GenerationDialog() {
   // Storyboard layout. The node dispatches via the standard image
   // handler with a locked template prompt wrapping the user's topic
   // into a single composite NxN grid. See lib/storyboardPrompt.ts.
-  const [storyboardGrid, setStoryboardGrid] = useState<StoryboardGrid>("3x3");
+  const [storyboardGrid, setStoryboardGrid] = useState<StoryboardGrid>("2x2");
 
   // Character builder state — only used when targetType === "character".
   const [charGender, setCharGender] = useState<GenderKey | null>(null);
@@ -238,11 +241,11 @@ export function GenerationDialog() {
 
   // Storyboard → video: when ANY upstream node is a Storyboard composite,
   // the motion prompt MUST follow a fixed template that asks Flow to
-  // animate the panels in order. 3x3 → frames 1→9; 2x2 → frames 1→4.
-  // Other refs (character / location / visual_asset) still flow as
-  // normal — the prompt itself is what's locked. Pick the first
-  // storyboard upstream's grid (multi-storyboard edges are an edge
-  // case we don't optimize for).
+  // animate the panels in order. 2x2→4 frames; 2x3→6; 2x4→8. Other
+  // refs (character / location / visual_asset) still flow as normal —
+  // the prompt itself is what's locked. Pick the first storyboard
+  // upstream's grid (multi-storyboard edges are an edge case we don't
+  // optimize for).
   const storyboardUpstream = isVideo
     ? edges
         .filter((e) => e.target === rfId)
@@ -250,8 +253,9 @@ export function GenerationDialog() {
         .find((n) => n?.data.type === "Storyboard")
     : undefined;
   const hasStoryboardUpstream = !!storyboardUpstream;
-  const storyboardUpstreamGrid =
-    storyboardUpstream?.data.storyboardGrid === "2x2" ? "2x2" : "3x3";
+  const storyboardUpstreamGrid = normaliseStoryboardGrid(
+    storyboardUpstream?.data.storyboardGrid,
+  );
   const sourceMediaId = sourceNode?.data.mediaId ?? null;
   // Drop null placeholders from the upstream variant list — partial-
   // batch results may carry them, but downstream dispatch needs a
@@ -349,7 +353,7 @@ export function GenerationDialog() {
           )
           .find((n) => n?.data.type === "Storyboard");
         if (sb) {
-          const g = sb.data.storyboardGrid === "2x2" ? "2x2" : "3x3";
+          const g = normaliseStoryboardGrid(sb.data.storyboardGrid);
           initialPrompt = buildStoryboardVideoPrompt(g);
         }
       }
@@ -379,15 +383,12 @@ export function GenerationDialog() {
       setAspectRatio(nextAspect);
       setVariants(1);
       setCamera("static");
-      // Hydrate storyboard grid from existing node data when reopening
-      // (or fall back to 3x3 for fresh nodes + legacy pre-1.2.15 nodes).
+      // Hydrate storyboard grid from existing node data when reopening.
+      // Fresh nodes + legacy values ("3x3" from 1.2.15-1.2.18) → "2x2".
       const openNodeData = useBoardStore
         .getState()
         .nodes.find((n) => n.id === rfId)?.data;
-      const savedGrid = openNodeData?.storyboardGrid;
-      setStoryboardGrid(
-        savedGrid === "2x2" || savedGrid === "3x3" ? savedGrid : "3x3",
-      );
+      setStoryboardGrid(normaliseStoryboardGrid(openNodeData?.storyboardGrid));
       setCharGender(null);
       setCharCountry(null);
       setCharVibe("clean");
@@ -530,7 +531,11 @@ export function GenerationDialog() {
       // textarea is the TOPIC; we wrap it in the locked template and
       // dispatch via the standard image path — Flow renders a single
       // composite NxN grid that visually narrates the topic.
-      const wrapped = buildStoryboardPrompt(prompt, storyboardGrid);
+      const wrapped = buildStoryboardPrompt(
+        prompt,
+        storyboardGrid,
+        aspectRatio,
+      );
       // Persist the chosen grid + topic on the node so reload shows
       // the same settings and `StoryboardBody` can render the grid badge.
       useBoardStore.getState().updateNodeData(rfId, {
@@ -792,7 +797,7 @@ export function GenerationDialog() {
                 🎬 <strong>Storyboard motion template</strong> — locked because an
                 upstream Storyboard node is feeding this video. Flow animates
                 the composite panels in order (frame 1 →
-                {" "}{storyboardUpstreamGrid === "2x2" ? "4" : "9"}). Other refs
+                {" "}{totalPanels(storyboardUpstreamGrid)}). Other refs
                 (character / location / visual_asset) still flow through normally.
               </p>
             )}
@@ -1195,33 +1200,45 @@ export function GenerationDialog() {
           </div>
         )}
 
-        {/* Grid radio — storyboard only. 2x2 (4 panels) or 3x3 (9 panels).
-            Drives the locked prompt template that wraps the user's topic. */}
+        {/* Grid radio — storyboard only. Three options: 2x2 (4 panels),
+            2x3 (6), 2x4 (8). For 2x3 / 2x4 the rows × cols flip based on
+            the chosen aspect ratio: landscape → wide grid (e.g. 2×3),
+            portrait → tall grid (3×2). */}
         {isStoryboard && (
           <div className="gen-dialog__field">
             <span className="gen-dialog__label">Grid</span>
             <div className="aspect-chip-row">
-              {(["2x2", "3x3"] as const).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  className={`aspect-chip${storyboardGrid === g ? " aspect-chip--active" : ""}`}
-                  onClick={() => setStoryboardGrid(g)}
-                  title={
-                    g === "2x2"
-                      ? "4 panels (2 rows × 2 cols)"
-                      : "9 panels (3 rows × 3 cols)"
-                  }
-                >
-                  {g === "2x2" ? "2×2 · 4 panels" : "3×3 · 9 panels"}
-                </button>
-              ))}
+              {STORYBOARD_GRIDS.map((g) => {
+                const total = totalPanels(g);
+                const isPortrait = aspectRatio.includes("PORTRAIT");
+                // For symmetric 2x2 the label is just "2×2". For 2x3 /
+                // 2x4 we render the concrete rows×cols pair that Flow
+                // will receive, so the user sees orientation reflected.
+                let dimsLabel = "2×2";
+                if (g !== "2x2") {
+                  const big = g === "2x3" ? 3 : 4;
+                  dimsLabel = isPortrait ? `${big}×2` : `2×${big}`;
+                }
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`aspect-chip${storyboardGrid === g ? " aspect-chip--active" : ""}`}
+                    onClick={() => setStoryboardGrid(g)}
+                    title={`${total} panels (${dimsLabel})`}
+                  >
+                    {dimsLabel} · {total} panels
+                  </button>
+                );
+              })}
             </div>
             <p className="gen-dialog__hint">
               Storyboard renders as a SINGLE composite image — Flow draws
               the whole grid as one picture. The topic field above is your
               story (e.g. <code>Rùa và Thỏ</code>); the locked template
-              wraps it for you.
+              wraps it for you. For 2×3 / 2×4 the rows × cols flip with the
+              aspect ratio so panels stay readable on both landscape and
+              portrait composites.
             </p>
           </div>
         )}

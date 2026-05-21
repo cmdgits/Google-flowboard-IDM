@@ -5297,8 +5297,9 @@ button:disabled {
 /* ── Storyboard ─────────────────────────────────────────────────────── */
 /* Storyboard is now a thin image-node wrapper (single composite NxN grid
    rendered as ONE image by Flow). We reuse ImageBody for the tile grid
-   and overlay a small corner badge labelling the chosen layout (3×3 /
-   2×2). The multi-shot continuity-tree variant has been retired. */
+   and overlay a small corner badge labelling the chosen layout (e.g.
+   2×2 / 2×3 / 2×4, flipped for portrait composites). The multi-shot
+   continuity-tree variant has been retired. */
 .storyboard-wrap {
   position: relative;
 }
