@@ -13,6 +13,7 @@ import {
   OMNI_FLASH_CREDIT_COST,
   OMNI_FLASH_DURATIONS,
   type OmniFlashDuration,
+  type VideoQuality,
 } from "../store/settings";
 import {
   autoPrompt as autoPromptApi,
@@ -105,6 +106,31 @@ const CAMERA_MOVEMENTS = [
 
 type CameraKey = (typeof CAMERA_MOVEMENTS)[number]["key"];
 
+// Video model picker shown in the dialog — mirrors the unified list from
+// SettingsPanel so the user can override the model per-dispatch without
+// opening the gear menu. Selecting a chip mutates the global settings
+// store (same pattern as the Omni-duration chips below), so the choice
+// is sticky for subsequent dispatches.
+// Each chip is either a Veo quality combo or Omni Flash. `ultraOnly`
+// chips are locked when the detected paygate tier isn't TIER_TWO —
+// the backend would silently fall back to Fast otherwise.
+type VeoChip = {
+  kind: "veo";
+  quality: VideoQuality;
+  label: string;
+  ultraOnly: boolean;
+};
+type OmniChip = { kind: "omni"; label: string };
+type VideoModelChip = VeoChip | OmniChip;
+
+const VIDEO_MODEL_CHIPS: readonly VideoModelChip[] = [
+  { kind: "veo", quality: "lite", label: "Veo 3.1 Lite", ultraOnly: false },
+  { kind: "veo", quality: "fast", label: "Veo 3.1 Fast", ultraOnly: false },
+  { kind: "veo", quality: "quality", label: "Veo 3.1 Quality", ultraOnly: false },
+  { kind: "veo", quality: "lite_relaxed", label: "Veo 3.1 Lite (Low Priority)", ultraOnly: true },
+  { kind: "omni", label: "Omni Flash" },
+];
+
 function cameraInstruction(key: CameraKey): string {
   return CAMERA_MOVEMENTS.find((c) => c.key === key)?.instruction ?? "";
 }
@@ -164,6 +190,23 @@ function pickDefaultAspect(
   return "IMAGE_ASPECT_RATIO_PORTRAIT";
 }
 
+// Small "ⓘ" affordance for moving static help-text out of the layout
+// into a hover tooltip — keeps the dialog short while preserving the
+// information for users who want it. Native `title` (plain text) is
+// enough; we don't need rich markup in tooltips.
+function InfoTip({ tip }: { tip: string }) {
+  return (
+    <span
+      className="gen-dialog__info-tip"
+      title={tip}
+      aria-label={tip}
+      role="img"
+    >
+      ⓘ
+    </span>
+  );
+}
+
 export function GenerationDialog() {
   const openDialog = useGenerationStore((s) => s.openDialog);
   const closeGenerationDialog = useGenerationStore((s) => s.closeGenerationDialog);
@@ -213,10 +256,17 @@ export function GenerationDialog() {
   // Hooks MUST be called unconditionally on every render — pull
   // videoModel out first, derive the boolean after.
   const videoModelFamily = useSettingsStore((s) => s.videoModel);
+  const videoQuality = useSettingsStore((s) => s.videoQuality);
+  const setVideoModel = useSettingsStore((s) => s.setVideoModel);
+  const setVideoQuality = useSettingsStore((s) => s.setVideoQuality);
   const omniFlashDuration = useSettingsStore((s) => s.omniFlashDuration);
   const setOmniFlashDuration = useSettingsStore(
     (s) => s.setOmniFlashDuration,
   );
+  // Auto-detected paygate tier (PAYGATE_TIER_ONE / TIER_TWO). Used to
+  // lock the Ultra-only model chips (lite_relaxed) for Pro users — same
+  // gating as the SettingsPanel.
+  const paygateTier = useGenerationStore((s) => s.paygateTier);
 
   const targetType = node?.data.type ?? "image";
   const isVideo = targetType === "video";
@@ -866,6 +916,7 @@ export function GenerationDialog() {
               <div className="gen-dialog__label-row">
                 <label className="gen-dialog__label" htmlFor="gen-char-extras">
                   Mô tả thêm (tuỳ chọn)
+                  <InfoTip tip="Prompt được auto-build: portrait headshot · vibe styling · photorealistic — tối ưu cho character reference." />
                 </label>
                 <span className="gen-dialog__char-count">{charExtras.length}/200</span>
               </div>
@@ -879,10 +930,6 @@ export function GenerationDialog() {
                 onChange={(e) => setCharExtras(e.target.value)}
                 placeholder="Tuổi, kiểu tóc, trang phục, biểu cảm…"
               />
-              <p className="gen-dialog__hint">
-                Prompt được auto-build: portrait headshot · vibe styling ·
-                photorealistic — tối ưu cho character reference.
-              </p>
             </div>
           </>
         )}
@@ -1118,7 +1165,10 @@ export function GenerationDialog() {
             surfaced beside each option. */}
         {isOmniVideo && (
           <div className="gen-dialog__field">
-            <span className="gen-dialog__label">Duration (Omni Flash)</span>
+            <span className="gen-dialog__label">
+              Duration (Omni Flash)
+              <InfoTip tip="Omni Flash dispatches via video:batchAsyncGenerateVideoReferenceImages with the upstream image(s) as IMAGE_USAGE_TYPE_ASSET refs. Duration scales credit cost: 4s=15, 6s=20, 8s=25, 10s=30." />
+            </span>
             <div className="aspect-chip-row">
               {OMNI_FLASH_DURATIONS.map((d) => {
                 const active = omniFlashDuration === d;
@@ -1137,18 +1187,71 @@ export function GenerationDialog() {
                 );
               })}
             </div>
-            <p className="gen-dialog__hint">
-              Omni Flash dispatches via <code>video:batchAsyncGenerateVideoReferenceImages</code>
-              {" "}with the upstream image(s) as <code>IMAGE_USAGE_TYPE_ASSET</code> refs.
-              Duration scales credit cost: 4s=15, 6s=20, 8s=25, 10s=30.
-            </p>
+          </div>
+        )}
+
+        {/* Model picker (video only) — mirrors the unified list from
+            SettingsPanel. Native <select> for compactness; selecting an
+            option stamps videoModel + videoQuality on the global
+            settings store so the override sticks for the next dispatch.
+            Encode option `value` as "veo:<quality>" or "omni" so the
+            change handler can split it back into the two store fields. */}
+        {isVideo && (
+          <div className="gen-dialog__field">
+            <span className="gen-dialog__label">
+              Model
+              <InfoTip tip="Sticky — selection được lưu cho các lần dispatch sau (đồng bộ với Settings). Veo dùng i2v (1 source image); Omni Flash dùng reference ingredients (đa ảnh) với duration 4/6/8/10s chọn ở dưới." />
+            </span>
+            <select
+              className="gen-dialog__select"
+              value={
+                videoModelFamily === "omni_flash"
+                  ? "omni"
+                  : `veo:${videoQuality}`
+              }
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "omni") {
+                  setVideoModel("omni_flash");
+                  return;
+                }
+                const [, quality] = v.split(":") as ["veo", VideoQuality];
+                setVideoModel("veo");
+                setVideoQuality(quality);
+              }}
+            >
+              {VIDEO_MODEL_CHIPS.map((m) => {
+                if (m.kind === "omni") {
+                  return (
+                    <option key="omni" value="omni">
+                      Omni Flash
+                    </option>
+                  );
+                }
+                const locked =
+                  m.ultraOnly && paygateTier !== "PAYGATE_TIER_TWO";
+                return (
+                  <option
+                    key={`veo:${m.quality}`}
+                    value={`veo:${m.quality}`}
+                    disabled={locked}
+                  >
+                    {m.label}
+                    {m.ultraOnly ? " · Ultra only" : ""}
+                  </option>
+                );
+              })}
+            </select>
           </div>
         )}
 
         {/* Camera movement (video only) */}
         {isVideo && (
           <div className="gen-dialog__field">
-            <span className="gen-dialog__label">Camera</span>
+            <span className="gen-dialog__label">
+              Camera
+              <InfoTip tip="Static = locked-off, không zoom/pan — phù hợp e-commerce product shot. Dynamic = để auto-prompt tự quyết camera move (dolly / micro-shift / …)." />
+            </span>
             <div className="aspect-chip-row">
               {CAMERA_MOVEMENTS.map((c) => (
                 <button
@@ -1162,11 +1265,6 @@ export function GenerationDialog() {
                 </button>
               ))}
             </div>
-            <p className="gen-dialog__hint">
-              <strong>Static</strong> = locked-off, không zoom/pan — phù hợp
-              e-commerce product shot. <strong>Dynamic</strong> = để auto-prompt
-              tự quyết camera move (dolly / micro-shift / …).
-            </p>
           </div>
         )}
 
@@ -1206,7 +1304,10 @@ export function GenerationDialog() {
             portrait → tall grid (3×2). */}
         {isStoryboard && (
           <div className="gen-dialog__field">
-            <span className="gen-dialog__label">Grid</span>
+            <span className="gen-dialog__label">
+              Grid
+              <InfoTip tip="Storyboard renders as a SINGLE composite image — Flow draws the whole grid as one picture. The topic field above is your story (e.g. Rùa và Thỏ); the locked template wraps it for you. For 2×3 / 2×4 the rows × cols flip with the aspect ratio so panels stay readable on both landscape and portrait composites." />
+            </span>
             <div className="aspect-chip-row">
               {STORYBOARD_GRIDS.map((g) => {
                 const total = totalPanels(g);
@@ -1232,14 +1333,6 @@ export function GenerationDialog() {
                 );
               })}
             </div>
-            <p className="gen-dialog__hint">
-              Storyboard renders as a SINGLE composite image — Flow draws
-              the whole grid as one picture. The topic field above is your
-              story (e.g. <code>Rùa và Thỏ</code>); the locked template
-              wraps it for you. For 2×3 / 2×4 the rows × cols flip with the
-              aspect ratio so panels stay readable on both landscape and
-              portrait composites.
-            </p>
           </div>
         )}
 
