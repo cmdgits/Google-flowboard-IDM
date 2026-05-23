@@ -15,22 +15,20 @@ import { create } from "zustand";
  * tier (e.g. fast vs quality) we extend this store with `videoModelKey`.
  */
 export type ImageModelKey = "NANO_BANANA_PRO" | "NANO_BANANA_2";
-// Veo 3.1 ships in five flavours:
+// Veo 3.1 ships in four flavours:
 //   - Lite (smaller checkpoint, fastest, lower fidelity)
 //   - Fast (default — bigger model, balanced)
 //   - Quality (highest fidelity, slowest)
 //   - Lite Relaxed (Lite on a low-priority queue, 0 credits — Ultra only)
-//   - Fast Relaxed (Fast on a low-priority queue, 0 credits — Ultra only)
 // Choice applies globally across both portrait and landscape; backend
 // resolves the actual model key at dispatch time from [tier][quality][aspect].
-// Tier 1 (Pro) users picking either *_relaxed* fall back to Fast on the
-// backend (and the Settings UI locks those radios for them).
+// Tier 1 (Pro) users picking `lite_relaxed` fall back to Fast on the
+// backend (and the Settings UI locks that radio for them).
 export type VideoQuality =
   | "fast"
   | "lite"
   | "quality"
-  | "lite_relaxed"
-  | "fast_relaxed";
+  | "lite_relaxed";
 
 // Video model family. "veo" = the existing Veo 3.1 i2v family controlled
 // by videoQuality (lite/fast/quality/...). "omni_flash" = the new
@@ -92,9 +90,14 @@ function persist(state: PersistShape): void {
 
 const persisted = loadPersisted();
 
+const VALID_VIDEO_QUALITIES: VideoQuality[] = ["fast", "lite", "quality", "lite_relaxed"];
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  imageModel: persisted.imageModel ?? "NANO_BANANA_PRO",
-  videoQuality: persisted.videoQuality ?? "fast",
+  imageModel: persisted.imageModel ?? "NANO_BANANA_2",
+  videoQuality:
+    persisted.videoQuality && VALID_VIDEO_QUALITIES.includes(persisted.videoQuality)
+      ? persisted.videoQuality
+      : "fast",
   videoModel: persisted.videoModel ?? "veo",
   omniFlashDuration: persisted.omniFlashDuration ?? 4,
   setImageModel(model) {
