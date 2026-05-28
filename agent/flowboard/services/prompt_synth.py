@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 PromptLanguage = Literal["auto", "en", "vi"]
 ResolvedPromptLanguage = Literal["en", "vi"]
+PromptAudioMode = Literal["ambient", "voiceover_review"]
 
 
 _SYNTH_SYSTEM_IMAGE = (
@@ -217,14 +218,33 @@ _SYNTH_SYSTEM_VIDEO_STATIC = (
     "entire subject and product framed for the full clip."
 )
 
+_VOICEOVER_REVIEW_AUDIO_CLAUSE = (
+    "\n\nVOICE-OVER REVIEW MODE — OVERRIDES THE NO-SPEECH DEFAULT: "
+    "The user explicitly wants a product-review voice-over. Include an "
+    "OFF-SCREEN voice-over narration, not lip-sync and not dialogue from "
+    "the visible subject. Keep every visible mouth neutral / closed-mouth. "
+    "The narration should briefly review the product shown in the source "
+    "and references: material, fit, color, styling, and overall impression. "
+    "Use a calm natural presenter voice with soft background music. Avoid "
+    "specific celebrity voices, accents, impersonation, lyrics, or singing. "
+    "If Vietnamese output is requested, write the voice-over direction in "
+    "Vietnamese and explicitly say the narration is Vietnamese."
+)
 
-def _video_system_prompt(camera: Optional[str], subject_count: int = 1) -> str:
+
+def _video_system_prompt(
+    camera: Optional[str],
+    subject_count: int = 1,
+    audio_mode: PromptAudioMode = "ambient",
+) -> str:
     base = (
         _SYNTH_SYSTEM_VIDEO_STATIC if camera == "static"
         else _SYNTH_SYSTEM_VIDEO_DEFAULT
     )
     if subject_count >= 2:
-        return base + _MULTI_SUBJECT_VIDEO_CLAUSE
+        base += _MULTI_SUBJECT_VIDEO_CLAUSE
+    if audio_mode == "voiceover_review":
+        base += _VOICEOVER_REVIEW_AUDIO_CLAUSE
     return base
 
 
@@ -559,6 +579,7 @@ async def auto_prompt_batch(
     *,
     camera: Optional[str] = None,
     language: PromptLanguage = "auto",
+    audio_mode: PromptAudioMode = "ambient",
 ) -> list[str]:
     """Compose N pose-distinct prompts in a single Claude call.
 
@@ -570,7 +591,12 @@ async def auto_prompt_batch(
     if count < 1:
         raise PromptSynthError("count must be >= 1")
     if count == 1:
-        single = await auto_prompt(node_id, camera=camera, language=language)
+        single = await auto_prompt(
+            node_id,
+            camera=camera,
+            language=language,
+            audio_mode=audio_mode,
+        )
         return [single]
 
     records, target = _collect_upstream(node_id)
@@ -580,7 +606,7 @@ async def auto_prompt_batch(
     is_video = target.type == "video"
     subject_count = len(_distinct_subjects(records))
     if is_video:
-        base_system = _video_system_prompt(camera, subject_count)
+        base_system = _video_system_prompt(camera, subject_count, audio_mode)
     else:
         base_system = _image_system_prompt(subject_count)
     resolved_language = _resolve_language(language, records, target)
@@ -598,6 +624,7 @@ async def auto_prompt_batch(
             "camera": camera,
             "language": language,
             "resolved_language": resolved_language,
+            "audio_mode": audio_mode,
         },
         node_id=node_id,
     ) as activity:
@@ -649,6 +676,7 @@ async def auto_prompt(
     *,
     camera: Optional[str] = None,
     language: PromptLanguage = "auto",
+    audio_mode: PromptAudioMode = "ambient",
 ) -> str:
     """Compose a generation prompt by walking upstream + asking the
     configured Auto-Prompt provider.
@@ -668,7 +696,7 @@ async def auto_prompt(
     is_video = target.type == "video"
     subject_count = len(_distinct_subjects(records))
     if is_video:
-        system_prompt = _video_system_prompt(camera, subject_count)
+        system_prompt = _video_system_prompt(camera, subject_count, audio_mode)
     else:
         system_prompt = _image_system_prompt(subject_count)
     resolved_language = _resolve_language(language, records, target)
@@ -682,6 +710,7 @@ async def auto_prompt(
             "camera": camera,
             "language": language,
             "resolved_language": resolved_language,
+            "audio_mode": audio_mode,
         },
         node_id=node_id,
     ) as activity:

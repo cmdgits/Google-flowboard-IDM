@@ -21,6 +21,7 @@ import {
   mediaUrl,
   patchEdge,
   patchNode,
+  type PromptAudioMode,
   type PromptLanguage,
 } from "../api/client";
 import {
@@ -113,6 +114,11 @@ const PROMPT_LANGUAGES: Array<{ key: PromptLanguage; label: string }> = [
   { key: "en", label: "English" },
 ];
 
+const VIDEO_AUDIO_MODES: Array<{ key: PromptAudioMode; label: string }> = [
+  { key: "ambient", label: "Ambient" },
+  { key: "voiceover_review", label: "Voice-over review" },
+];
+
 // Video model picker shown in the dialog — mirrors the unified list from
 // SettingsPanel so the user can override the model per-dispatch without
 // opening the gear menu. Selecting a chip mutates the global settings
@@ -140,6 +146,21 @@ const VIDEO_MODEL_CHIPS: readonly VideoModelChip[] = [
 
 function cameraInstruction(key: CameraKey): string {
   return CAMERA_MOVEMENTS.find((c) => c.key === key)?.instruction ?? "";
+}
+
+function audioInstruction(mode: PromptAudioMode, language: PromptLanguage): string {
+  if (mode !== "voiceover_review") return "";
+  const voiceLanguage =
+    language === "vi"
+      ? "Vietnamese"
+      : language === "en"
+      ? "English"
+      : "the same language as the motion prompt";
+  return (
+    `Audio: add an off-screen ${voiceLanguage} voice-over review of the product; `
+    + "do not lip-sync, keep the visible subject's mouth closed, use a calm "
+    + "natural presenter voice with soft background music"
+  );
 }
 
 type ImageAspectKey = (typeof IMAGE_ASPECT_RATIOS)[number]["key"];
@@ -224,6 +245,7 @@ export function GenerationDialog() {
   const [aspectRatio, setAspectRatio] = useState<AspectKey>("IMAGE_ASPECT_RATIO_LANDSCAPE");
   const [variants, setVariants] = useState(1);
   const [camera, setCamera] = useState<CameraKey>("static");
+  const [videoAudioMode, setVideoAudioMode] = useState<PromptAudioMode>("ambient");
   // Storyboard layout. The node dispatches via the standard image
   // handler with a locked template prompt wrapping the user's topic
   // into a single composite NxN grid. See lib/storyboardPrompt.ts.
@@ -240,6 +262,7 @@ export function GenerationDialog() {
   const [autoBuilding, setAutoBuilding] = useState(false);
   const [autoPromptUsed, setAutoPromptUsed] = useState(false);
   const [promptLanguage, setPromptLanguage] = useState<PromptLanguage>("auto");
+  const [promptEdited, setPromptEdited] = useState(false);
 
   // Per-variant selection for multi-source i2v. Default: all selected.
   // Stored as a Set of indices so the UI can toggle individual variants
@@ -441,6 +464,7 @@ export function GenerationDialog() {
       setAspectRatio(nextAspect);
       setVariants(1);
       setCamera("static");
+      setVideoAudioMode("ambient");
       // Hydrate storyboard grid from existing node data when reopening.
       // Fresh nodes + legacy values ("3x3" from 1.2.15-1.2.18) → "2x2".
       const openNodeData = useBoardStore
@@ -454,6 +478,7 @@ export function GenerationDialog() {
       setAutoBuilding(false);
       setAutoPromptUsed(false);
       setPromptLanguage("auto");
+      setPromptEdited(false);
       // Default-select every upstream source variant for video targets so
       // the user just hits Generate when they want all videos.
       const upstreamEdge = useBoardStore
@@ -672,7 +697,10 @@ export function GenerationDialog() {
     // batch endpoint so each variant gets its own pose-distinct prompt.
     let finalPrompt = prompt;
     let perVariantPrompts: string[] | undefined;
-    if (!finalPrompt.trim()) {
+    const shouldAutoPrompt =
+      !finalPrompt.trim()
+      || (promptLanguage !== "auto" && !promptEdited);
+    if (shouldAutoPrompt) {
       const dbId = parseInt(rfId, 10);
       if (isNaN(dbId)) {
         return;
@@ -686,6 +714,7 @@ export function GenerationDialog() {
         if (!isVideo && variants > 1) {
           const res = await autoPromptBatchApi(dbId, variants, {
             language: promptLanguage,
+            audioMode: videoAudioMode,
           });
           perVariantPrompts = res.prompts;
           // Show all N prompts joined so the user can verify before
@@ -699,10 +728,12 @@ export function GenerationDialog() {
           const res = await autoPromptApi(dbId, {
             camera: isVideo ? camera : undefined,
             language: promptLanguage,
+            audioMode: isVideo ? videoAudioMode : undefined,
           });
           finalPrompt = res.prompt;
           setPrompt(finalPrompt);
         }
+        setPromptEdited(false);
         setAutoPromptUsed(true);
         useBoardStore.getState().updateNodeData(rfId, { autoPromptStatus: undefined });
       } catch (err) {
@@ -723,9 +754,10 @@ export function GenerationDialog() {
       // the dominant instruction the model resolves against — overrides
       // any conflicting "slow dolly-in" the synthesizer might have output.
       const camInstruction = cameraInstruction(camera);
-      const videoPrompt = camInstruction
-        ? `${finalPrompt}. ${camInstruction}`
-        : finalPrompt;
+      const audio = audioInstruction(videoAudioMode, promptLanguage);
+      const videoPrompt = [finalPrompt, camInstruction, audio]
+        .filter((part) => part.trim().length > 0)
+        .join(". ");
       // Filter the upstream variants to the user's selection — the dialog
       // shows one toggleable thumbnail per variant + an All/None action.
       const picked = sourceMediaIds.filter((_, i) => selectedSourceIdx.has(i));
@@ -839,6 +871,7 @@ export function GenerationDialog() {
               value={prompt}
               onChange={(e) => {
                 setPrompt(e.target.value);
+                setPromptEdited(true);
                 if (autoPromptUsed) setAutoPromptUsed(false);
               }}
               placeholder={
@@ -890,6 +923,27 @@ export function GenerationDialog() {
                   disabled={isWorking}
                 >
                   {lang.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isVideo && !isPrompt && !isStoryboard && (
+          <div className="gen-dialog__field">
+            <span className="gen-dialog__label">Audio</span>
+            <div className="aspect-chip-row">
+              {VIDEO_AUDIO_MODES.map((mode) => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  className={`aspect-chip${
+                    videoAudioMode === mode.key ? " aspect-chip--active" : ""
+                  }`}
+                  onClick={() => setVideoAudioMode(mode.key)}
+                  disabled={isWorking}
+                >
+                  {mode.label}
                 </button>
               ))}
             </div>

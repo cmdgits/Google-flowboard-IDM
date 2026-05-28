@@ -643,6 +643,52 @@ async def test_auto_prompt_video_uses_motion_system_prompt(client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_auto_prompt_video_voiceover_review_overrides_no_speech_default(client, monkeypatch):
+    with get_session() as s:
+        b = Board(name="voice")
+        s.add(b); s.commit(); s.refresh(b)
+        src = Node(
+            board_id=b.id, short_id="vsrc", type="image",
+            x=0, y=0, w=240, h=180,
+            data={
+                "title": "Source",
+                "aiBrief": "model wearing a blue ruffled dress in a garden",
+                "mediaId": "uuuuuuuu-1111-2222-3333-444444444444",
+            },
+            status="done",
+        )
+        vid = Node(
+            board_id=b.id, short_id="vvid", type="video",
+            x=0, y=0, w=240, h=180,
+            data={"title": "Review"},
+            status="idle",
+        )
+        s.add_all([src, vid]); s.commit(); s.refresh(src); s.refresh(vid)
+        s.add(Edge(board_id=b.id, source_id=src.id, target_id=vid.id))
+        s.commit()
+        vid_id = vid.id
+
+    captured: dict = {}
+
+    async def stub_run(feature, prompt, *, system_prompt=None, timeout=0):
+        captured["system_prompt"] = system_prompt
+        return "Vietnamese off-screen voice-over reviews the dress while the model gently shifts."
+
+    monkeypatch.setattr(prompt_synth, "run_llm", stub_run)
+    await prompt_synth.auto_prompt(
+        vid_id,
+        language="vi",
+        audio_mode="voiceover_review",
+    )
+
+    sp = captured["system_prompt"] or ""
+    assert "VOICE-OVER REVIEW MODE" in sp
+    assert "OVERRIDES THE NO-SPEECH DEFAULT" in sp
+    assert "OFF-SCREEN voice-over" in sp
+    assert "Vietnamese" in sp
+
+
+@pytest.mark.asyncio
 async def test_auto_prompt_video_static_camera_locks_system_prompt(client, monkeypatch):
     """When camera='static' the synthesiser must use the locked-camera
     system variant and NOT propose dolly/pan/zoom (which crops the product
@@ -960,9 +1006,10 @@ async def test_auto_prompt_caps_long_responses(client, monkeypatch):
 def test_route_happy_path(client, monkeypatch):
     ids = _seed_board_with_chain()
 
-    async def stub(node_id, *, camera=None, language="auto"):
+    async def stub(node_id, *, camera=None, language="auto", audio_mode="ambient"):
         assert node_id == ids["target_id"]
         assert language == "auto"
+        assert audio_mode == "ambient"
         return "synthesized prompt"
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
@@ -977,9 +1024,10 @@ def test_route_passes_camera_arg_through(client, monkeypatch):
     ids = _seed_board_with_chain()
     captured: dict = {}
 
-    async def stub(node_id, *, camera=None, language="auto"):
+    async def stub(node_id, *, camera=None, language="auto", audio_mode="ambient"):
         captured["camera"] = camera
         captured["language"] = language
+        captured["audio_mode"] = audio_mode
         return "ok"
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
@@ -990,14 +1038,16 @@ def test_route_passes_camera_arg_through(client, monkeypatch):
     assert r.status_code == 200, r.text
     assert captured["camera"] == "static"
     assert captured["language"] == "auto"
+    assert captured["audio_mode"] == "ambient"
 
 
 def test_route_passes_language_arg_through(client, monkeypatch):
     ids = _seed_board_with_chain()
     captured: dict = {}
 
-    async def stub(node_id, *, camera=None, language="auto"):
+    async def stub(node_id, *, camera=None, language="auto", audio_mode="ambient"):
         captured["language"] = language
+        captured["audio_mode"] = audio_mode
         return "ok"
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
@@ -1007,6 +1057,24 @@ def test_route_passes_language_arg_through(client, monkeypatch):
     )
     assert r.status_code == 200, r.text
     assert captured["language"] == "vi"
+    assert captured["audio_mode"] == "ambient"
+
+
+def test_route_passes_audio_mode_arg_through(client, monkeypatch):
+    ids = _seed_board_with_chain()
+    captured: dict = {}
+
+    async def stub(node_id, *, camera=None, language="auto", audio_mode="ambient"):
+        captured["audio_mode"] = audio_mode
+        return "ok"
+
+    monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
+    r = client.post(
+        "/api/prompt/auto",
+        json={"node_id": ids["target_id"], "audio_mode": "voiceover_review"},
+    )
+    assert r.status_code == 200, r.text
+    assert captured["audio_mode"] == "voiceover_review"
 
 
 @pytest.mark.asyncio
@@ -1087,9 +1155,10 @@ def test_route_auto_batch_passes_through(client, monkeypatch):
     ids = _seed_board_with_chain()
     captured: dict = {}
 
-    async def stub(node_id, count, *, camera=None, language="auto"):
+    async def stub(node_id, count, *, camera=None, language="auto", audio_mode="ambient"):
         captured["count"] = count
         captured["language"] = language
+        captured["audio_mode"] = audio_mode
         return [f"prompt-{i}" for i in range(count)]
 
     monkeypatch.setattr(prompt_synth, "auto_prompt_batch", stub)
@@ -1102,6 +1171,7 @@ def test_route_auto_batch_passes_through(client, monkeypatch):
     assert len(body["prompts"]) == 4
     assert captured["count"] == 4
     assert captured["language"] == "auto"
+    assert captured["audio_mode"] == "ambient"
 
 
 def test_route_auto_batch_rejects_bad_count(client):
@@ -1113,7 +1183,7 @@ def test_route_auto_batch_rejects_bad_count(client):
 
 
 def test_route_502_on_synth_failure(client, monkeypatch):
-    async def stub(node_id, *, camera=None, language="auto"):
+    async def stub(node_id, *, camera=None, language="auto", audio_mode="ambient"):
         raise prompt_synth.PromptSynthError("auto-prompt provider failed: timeout")
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)

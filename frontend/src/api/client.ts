@@ -512,11 +512,12 @@ export interface AutoPromptBatchResponse {
 }
 
 export type PromptLanguage = "auto" | "en" | "vi";
+export type PromptAudioMode = "ambient" | "voiceover_review";
 
 export async function autoPromptBatch(
   nodeId: number,
   count: number,
-  opts?: { camera?: string; language?: PromptLanguage },
+  opts?: { camera?: string; language?: PromptLanguage; audioMode?: PromptAudioMode },
 ): Promise<AutoPromptBatchResponse> {
   const res = await fetch("/api/prompt/auto-batch", {
     method: "POST",
@@ -526,6 +527,7 @@ export async function autoPromptBatch(
       count,
       camera: opts?.camera,
       language: opts?.language,
+      audio_mode: opts?.audioMode,
     }),
   });
   if (!res.ok) {
@@ -536,7 +538,7 @@ export async function autoPromptBatch(
 
 export async function autoPrompt(
   nodeId: number,
-  opts?: { camera?: string; language?: PromptLanguage },
+  opts?: { camera?: string; language?: PromptLanguage; audioMode?: PromptAudioMode },
 ): Promise<AutoPromptResponse> {
   const res = await fetch("/api/prompt/auto", {
     method: "POST",
@@ -545,6 +547,7 @@ export async function autoPrompt(
       node_id: nodeId,
       camera: opts?.camera,
       language: opts?.language,
+      audio_mode: opts?.audioMode,
     }),
   });
   if (!res.ok) {

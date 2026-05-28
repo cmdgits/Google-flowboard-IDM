@@ -26,6 +26,7 @@ class AutoPromptBody(BaseModel):
     # locked system prompt and avoids dolly/zoom suggestions.
     camera: Optional[str] = None
     language: Literal["auto", "en", "vi"] = "auto"
+    audio_mode: Literal["ambient", "voiceover_review"] = "ambient"
 
 
 class AutoPromptResponse(BaseModel):
@@ -40,6 +41,7 @@ async def auto_prompt(body: AutoPromptBody) -> AutoPromptResponse:
             body.node_id,
             camera=body.camera,
             language=body.language,
+            audio_mode=body.audio_mode,
         )
     except prompt_synth.PromptSynthError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
@@ -51,6 +53,7 @@ class AutoPromptBatchBody(BaseModel):
     count: int
     camera: Optional[str] = None
     language: Literal["auto", "en", "vi"] = "auto"
+    audio_mode: Literal["ambient", "voiceover_review"] = "ambient"
 
 
 class AutoPromptBatchResponse(BaseModel):
@@ -71,6 +74,7 @@ async def auto_prompt_batch(body: AutoPromptBatchBody) -> AutoPromptBatchRespons
             body.count,
             camera=body.camera,
             language=body.language,
+            audio_mode=body.audio_mode,
         )
     except prompt_synth.PromptSynthError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
