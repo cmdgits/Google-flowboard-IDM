@@ -1521,6 +1521,11 @@ export function NodeCard(props: NodeProps<FlowNode>) {
     });
   }
 
+  function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    void useBoardStore.getState().deleteNodeByRfId(props.id);
+  }
+
   return (
     <div
       className={`node-card${isNote ? " node-card--note" : ""}${
@@ -1565,6 +1570,16 @@ export function NodeCard(props: NodeProps<FlowNode>) {
               ▶
             </button>
           )}
+          <button
+            className="node-header__btn node-header__btn--danger"
+            onClick={handleDelete}
+            aria-label="Delete block"
+            title="Delete block"
+            tabIndex={0}
+            type="button"
+          >
+            ×
+          </button>
         </div>
         <span className="node-short-id">#{data.shortId}</span>
       </div>

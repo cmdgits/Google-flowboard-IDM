@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from sqlmodel import select
 
@@ -24,6 +24,9 @@ from flowboard.services.llm import run_llm
 from flowboard.services.llm.base import LLMError
 
 logger = logging.getLogger(__name__)
+
+PromptLanguage = Literal["auto", "en", "vi"]
+ResolvedPromptLanguage = Literal["en", "vi"]
 
 
 _SYNTH_SYSTEM_IMAGE = (
@@ -227,6 +230,65 @@ def _video_system_prompt(camera: Optional[str], subject_count: int = 1) -> str:
 
 class PromptSynthError(RuntimeError):
     pass
+
+
+_VIETNAMESE_CHARS = (
+    "ăâđêôơư"
+    "áàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệ"
+    "íìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữự"
+    "ýỳỷỹỵ"
+)
+
+
+def _looks_vietnamese(text: str) -> bool:
+    lower = text.lower()
+    return any(ch in lower for ch in _VIETNAMESE_CHARS)
+
+
+def _resolve_language(
+    requested: Optional[str],
+    records: list[dict],
+    target: Node,
+) -> ResolvedPromptLanguage:
+    if requested == "vi":
+        return "vi"
+    if requested == "en":
+        return "en"
+
+    chunks: list[str] = []
+    target_data = target.data or {}
+    target_title = target_data.get("title")
+    if isinstance(target_title, str):
+        chunks.append(target_title)
+
+    for record in records:
+        for key in ("brief", "prompt", "title"):
+            value = record.get(key)
+            if isinstance(value, str):
+                chunks.append(value)
+
+    return "vi" if any(_looks_vietnamese(chunk) for chunk in chunks) else "en"
+
+
+def _language_instruction(language: ResolvedPromptLanguage) -> str:
+    if language == "vi":
+        return (
+            "\n\nLANGUAGE: Output the generated prompt in Vietnamese. Keep "
+            "technical tokens and reference labels exactly as-is, including "
+            "`ref_image_N`, model/camera terms, product names, and brand "
+            "names. Preserve the response format requested above."
+        )
+    return (
+        "\n\nLANGUAGE: Output the generated prompt in English. Preserve the "
+        "response format requested above."
+    )
+
+
+def _with_language(
+    system_prompt: str,
+    language: ResolvedPromptLanguage,
+) -> str:
+    return system_prompt + _language_instruction(language)
 
 
 # Ref-source node types — the ones whose mediaId becomes a position
@@ -492,7 +554,11 @@ _BATCH_SUFFIX = (
 
 
 async def auto_prompt_batch(
-    node_id: int, count: int, *, camera: Optional[str] = None
+    node_id: int,
+    count: int,
+    *,
+    camera: Optional[str] = None,
+    language: PromptLanguage = "auto",
 ) -> list[str]:
     """Compose N pose-distinct prompts in a single Claude call.
 
@@ -504,7 +570,7 @@ async def auto_prompt_batch(
     if count < 1:
         raise PromptSynthError("count must be >= 1")
     if count == 1:
-        single = await auto_prompt(node_id, camera=camera)
+        single = await auto_prompt(node_id, camera=camera, language=language)
         return [single]
 
     records, target = _collect_upstream(node_id)
@@ -517,12 +583,22 @@ async def auto_prompt_batch(
         base_system = _video_system_prompt(camera, subject_count)
     else:
         base_system = _image_system_prompt(subject_count)
-    system_prompt = base_system + _BATCH_SUFFIX.format(count=count)
+    resolved_language = _resolve_language(language, records, target)
+    system_prompt = _with_language(
+        base_system + _BATCH_SUFFIX.format(count=count),
+        resolved_language,
+    )
     user_msg = _format_user_message(records, target)
 
     async with record_activity(
         "auto_prompt_batch",
-        params={"node_id": node_id, "count": count, "camera": camera},
+        params={
+            "node_id": node_id,
+            "count": count,
+            "camera": camera,
+            "language": language,
+            "resolved_language": resolved_language,
+        },
         node_id=node_id,
     ) as activity:
         try:
@@ -568,7 +644,12 @@ async def auto_prompt_batch(
         return prompts
 
 
-async def auto_prompt(node_id: int, *, camera: Optional[str] = None) -> str:
+async def auto_prompt(
+    node_id: int,
+    *,
+    camera: Optional[str] = None,
+    language: PromptLanguage = "auto",
+) -> str:
     """Compose a generation prompt by walking upstream + asking the
     configured Auto-Prompt provider.
 
@@ -590,11 +671,18 @@ async def auto_prompt(node_id: int, *, camera: Optional[str] = None) -> str:
         system_prompt = _video_system_prompt(camera, subject_count)
     else:
         system_prompt = _image_system_prompt(subject_count)
+    resolved_language = _resolve_language(language, records, target)
+    system_prompt = _with_language(system_prompt, resolved_language)
     user_msg = _format_user_message(records, target)
 
     async with record_activity(
         "auto_prompt",
-        params={"node_id": node_id, "camera": camera},
+        params={
+            "node_id": node_id,
+            "camera": camera,
+            "language": language,
+            "resolved_language": resolved_language,
+        },
         node_id=node_id,
     ) as activity:
         try:

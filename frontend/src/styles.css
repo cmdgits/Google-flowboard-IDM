@@ -1383,11 +1383,21 @@ button:disabled {
   filter: drop-shadow(0 0 4px rgba(124, 92, 255, 0.5));
 }
 
-/* Variant-pin chip — sits at the edge midpoint when the edge has a
-   sourceVariantIdx. pointer-events: none so the underlying edge hit
-   area still wins for selection / delete. */
-.variant-edge-pin {
+/* Edge midpoint controls: selected links expose delete, pinned links
+   also show their sourceVariantIdx badge. */
+.variant-edge-label {
   position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.variant-edge-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   font-size: 10px;
   font-weight: 600;
@@ -1399,7 +1409,27 @@ button:disabled {
   border: 1px solid rgba(124, 92, 255, 0.45);
   white-space: nowrap;
   user-select: none;
-  z-index: 1;
+}
+
+.variant-edge-delete {
+  pointer-events: all;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.48);
+  color: #fca5a5;
+  font-size: 14px;
+  line-height: 1;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.variant-edge-delete:hover {
+  background: rgba(239, 68, 68, 0.28);
+  color: #fff;
 }
 
 /* Body slots */
@@ -3025,6 +3055,11 @@ button:disabled {
 
 /* Running state for the gen button — keep it visible so the user knows a
    request is in flight even when not hovering the card. */
+.node-header__btn--danger:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.16);
+}
+
 .node-header__btn--running {
   color: var(--accent);
   opacity: 1;

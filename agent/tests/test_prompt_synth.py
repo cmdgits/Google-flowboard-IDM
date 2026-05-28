@@ -172,6 +172,56 @@ async def test_auto_prompt_calls_provider_with_upstream_briefs(client, monkeypat
     assert matches >= 4, f"only matched {matches} pose options in pool"
 
 
+@pytest.mark.asyncio
+async def test_auto_prompt_can_force_vietnamese_output(client, monkeypatch):
+    ids = _seed_board_with_chain()
+    captured: dict = {}
+
+    async def stub_run(feature, prompt, *, system_prompt=None, timeout=0):
+        captured["system_prompt"] = system_prompt
+        return "Ảnh editorial chân thực của người mẫu mặc áo thun trắng"
+
+    monkeypatch.setattr(prompt_synth, "run_llm", stub_run)
+
+    out = await prompt_synth.auto_prompt(ids["target_id"], language="vi")
+
+    assert "người mẫu" in out
+    sp = captured["system_prompt"] or ""
+    assert "Output the generated prompt in Vietnamese" in sp
+    assert "ref_image_N" in sp
+
+
+@pytest.mark.asyncio
+async def test_auto_prompt_auto_detects_vietnamese_context(client, monkeypatch):
+    with get_session() as s:
+        b = Board(name="vietnamese")
+        s.add(b); s.commit(); s.refresh(b)
+        target = Node(
+            board_id=b.id,
+            short_id="vipt",
+            type="image",
+            x=0, y=0, w=240, h=180,
+            data={"title": "Áo thun đỏ trên phố Sài Gòn"},
+            status="idle",
+        )
+        s.add(target); s.commit(); s.refresh(target)
+        target_id = target.id
+
+    captured: dict = {}
+
+    async def stub_run(feature, prompt, *, system_prompt=None, timeout=0):
+        captured["system_prompt"] = system_prompt
+        return "Ảnh sản phẩm áo thun đỏ trên phố Sài Gòn"
+
+    monkeypatch.setattr(prompt_synth, "run_llm", stub_run)
+
+    await prompt_synth.auto_prompt(target_id)
+
+    assert "Output the generated prompt in Vietnamese" in (
+        captured["system_prompt"] or ""
+    )
+
+
 def _seed_couple_via_image_siblings() -> dict:
     """Seed a board where the target image has 2 image upstream siblings,
     each wrapping a different character grandparent. Mirrors the real-world
@@ -910,8 +960,9 @@ async def test_auto_prompt_caps_long_responses(client, monkeypatch):
 def test_route_happy_path(client, monkeypatch):
     ids = _seed_board_with_chain()
 
-    async def stub(node_id, *, camera=None):
+    async def stub(node_id, *, camera=None, language="auto"):
         assert node_id == ids["target_id"]
+        assert language == "auto"
         return "synthesized prompt"
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
@@ -926,8 +977,9 @@ def test_route_passes_camera_arg_through(client, monkeypatch):
     ids = _seed_board_with_chain()
     captured: dict = {}
 
-    async def stub(node_id, *, camera=None):
+    async def stub(node_id, *, camera=None, language="auto"):
         captured["camera"] = camera
+        captured["language"] = language
         return "ok"
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
@@ -937,6 +989,24 @@ def test_route_passes_camera_arg_through(client, monkeypatch):
     )
     assert r.status_code == 200, r.text
     assert captured["camera"] == "static"
+    assert captured["language"] == "auto"
+
+
+def test_route_passes_language_arg_through(client, monkeypatch):
+    ids = _seed_board_with_chain()
+    captured: dict = {}
+
+    async def stub(node_id, *, camera=None, language="auto"):
+        captured["language"] = language
+        return "ok"
+
+    monkeypatch.setattr(prompt_synth, "auto_prompt", stub)
+    r = client.post(
+        "/api/prompt/auto",
+        json={"node_id": ids["target_id"], "language": "vi"},
+    )
+    assert r.status_code == 200, r.text
+    assert captured["language"] == "vi"
 
 
 @pytest.mark.asyncio
@@ -1017,8 +1087,9 @@ def test_route_auto_batch_passes_through(client, monkeypatch):
     ids = _seed_board_with_chain()
     captured: dict = {}
 
-    async def stub(node_id, count, *, camera=None):
+    async def stub(node_id, count, *, camera=None, language="auto"):
         captured["count"] = count
+        captured["language"] = language
         return [f"prompt-{i}" for i in range(count)]
 
     monkeypatch.setattr(prompt_synth, "auto_prompt_batch", stub)
@@ -1030,6 +1101,7 @@ def test_route_auto_batch_passes_through(client, monkeypatch):
     body = r.json()
     assert len(body["prompts"]) == 4
     assert captured["count"] == 4
+    assert captured["language"] == "auto"
 
 
 def test_route_auto_batch_rejects_bad_count(client):
@@ -1041,7 +1113,7 @@ def test_route_auto_batch_rejects_bad_count(client):
 
 
 def test_route_502_on_synth_failure(client, monkeypatch):
-    async def stub(node_id, *, camera=None):
+    async def stub(node_id, *, camera=None, language="auto"):
         raise prompt_synth.PromptSynthError("auto-prompt provider failed: timeout")
 
     monkeypatch.setattr(prompt_synth, "auto_prompt", stub)

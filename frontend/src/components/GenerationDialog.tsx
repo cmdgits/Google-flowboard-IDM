@@ -21,6 +21,7 @@ import {
   mediaUrl,
   patchEdge,
   patchNode,
+  type PromptLanguage,
 } from "../api/client";
 import {
   CHARACTER_GENDERS,
@@ -105,6 +106,12 @@ const CAMERA_MOVEMENTS = [
 ] as const;
 
 type CameraKey = (typeof CAMERA_MOVEMENTS)[number]["key"];
+
+const PROMPT_LANGUAGES: Array<{ key: PromptLanguage; label: string }> = [
+  { key: "auto", label: "Auto" },
+  { key: "vi", label: "Tiếng Việt" },
+  { key: "en", label: "English" },
+];
 
 // Video model picker shown in the dialog — mirrors the unified list from
 // SettingsPanel so the user can override the model per-dispatch without
@@ -232,6 +239,7 @@ export function GenerationDialog() {
   // synthesise one from upstream context. Surfaced as a small ✨ badge.
   const [autoBuilding, setAutoBuilding] = useState(false);
   const [autoPromptUsed, setAutoPromptUsed] = useState(false);
+  const [promptLanguage, setPromptLanguage] = useState<PromptLanguage>("auto");
 
   // Per-variant selection for multi-source i2v. Default: all selected.
   // Stored as a Set of indices so the UI can toggle individual variants
@@ -445,6 +453,7 @@ export function GenerationDialog() {
       setCharExtras("");
       setAutoBuilding(false);
       setAutoPromptUsed(false);
+      setPromptLanguage("auto");
       // Default-select every upstream source variant for video targets so
       // the user just hits Generate when they want all videos.
       const upstreamEdge = useBoardStore
@@ -675,7 +684,9 @@ export function GenerationDialog() {
       useBoardStore.getState().updateNodeData(rfId, { autoPromptStatus: "pending" });
       try {
         if (!isVideo && variants > 1) {
-          const res = await autoPromptBatchApi(dbId, variants);
+          const res = await autoPromptBatchApi(dbId, variants, {
+            language: promptLanguage,
+          });
           perVariantPrompts = res.prompts;
           // Show all N prompts joined so the user can verify before
           // dispatch — we don't dispatch until they re-click Generate
@@ -685,7 +696,10 @@ export function GenerationDialog() {
           finalPrompt = res.prompts[0] ?? "";
           setPrompt(res.prompts.join("\n\n— variant —\n\n"));
         } else {
-          const res = await autoPromptApi(dbId, isVideo ? { camera } : undefined);
+          const res = await autoPromptApi(dbId, {
+            camera: isVideo ? camera : undefined,
+            language: promptLanguage,
+          });
           finalPrompt = res.prompt;
           setPrompt(finalPrompt);
         }
@@ -858,6 +872,27 @@ export function GenerationDialog() {
                   : "✨ Đang dựng prompt từ upstream context…"}
               </p>
             )}
+          </div>
+        )}
+
+        {!isCharacter && !isPrompt && !isStoryboard && !hasStoryboardUpstream && (
+          <div className="gen-dialog__field">
+            <span className="gen-dialog__label">Auto-prompt language</span>
+            <div className="aspect-chip-row">
+              {PROMPT_LANGUAGES.map((lang) => (
+                <button
+                  key={lang.key}
+                  type="button"
+                  className={`aspect-chip${
+                    promptLanguage === lang.key ? " aspect-chip--active" : ""
+                  }`}
+                  onClick={() => setPromptLanguage(lang.key)}
+                  disabled={isWorking}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

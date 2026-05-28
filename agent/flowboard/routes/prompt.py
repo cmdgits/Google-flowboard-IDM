@@ -8,7 +8,7 @@ without typing a prompt.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -25,6 +25,7 @@ class AutoPromptBody(BaseModel):
     # Optional video-only constraint: e.g. "static" → synth uses the camera-
     # locked system prompt and avoids dolly/zoom suggestions.
     camera: Optional[str] = None
+    language: Literal["auto", "en", "vi"] = "auto"
 
 
 class AutoPromptResponse(BaseModel):
@@ -35,7 +36,11 @@ class AutoPromptResponse(BaseModel):
 @router.post("/auto", response_model=AutoPromptResponse)
 async def auto_prompt(body: AutoPromptBody) -> AutoPromptResponse:
     try:
-        text = await prompt_synth.auto_prompt(body.node_id, camera=body.camera)
+        text = await prompt_synth.auto_prompt(
+            body.node_id,
+            camera=body.camera,
+            language=body.language,
+        )
     except prompt_synth.PromptSynthError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
     return AutoPromptResponse(node_id=body.node_id, prompt=text)
@@ -45,6 +50,7 @@ class AutoPromptBatchBody(BaseModel):
     node_id: int
     count: int
     camera: Optional[str] = None
+    language: Literal["auto", "en", "vi"] = "auto"
 
 
 class AutoPromptBatchResponse(BaseModel):
@@ -61,7 +67,10 @@ async def auto_prompt_batch(body: AutoPromptBatchBody) -> AutoPromptBatchRespons
         raise HTTPException(status_code=400, detail="count must be 1..8")
     try:
         prompts = await prompt_synth.auto_prompt_batch(
-            body.node_id, body.count, camera=body.camera
+            body.node_id,
+            body.count,
+            camera=body.camera,
+            language=body.language,
         )
     except prompt_synth.PromptSynthError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
