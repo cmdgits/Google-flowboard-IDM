@@ -143,6 +143,19 @@ async def test_run_emits_o_json_flag(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_trusts_workspace_via_env(monkeypatch):
+    """Recent Gemini CLI versions exit 55 unless the workspace is trusted.
+    Flowboard runs Gemini non-interactively, so the provider sets the
+    documented trust env var on every subprocess call."""
+    p = GeminiProvider()
+    _stub_resolve(monkeypatch)
+    state = _stub_run(monkeypatch, _FakeResult(returncode=0, stdout=_envelope("ok")))
+    await p.run("hi")
+    env = state["calls"][0][1].get("env")
+    assert env["GEMINI_CLI_TRUST_WORKSPACE"] == "true"
+
+
+@pytest.mark.asyncio
 async def test_run_raises_when_envelope_is_not_json(monkeypatch):
     """If the CLI emits text outside the JSON shape (e.g. login banner
     consumed all of stdout), surface a clear LLMError instead of

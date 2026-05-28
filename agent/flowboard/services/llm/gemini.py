@@ -64,6 +64,19 @@ _PROBE_TIMEOUT = CLI_PROBE_TIMEOUT
 _DEFAULT_MODEL: str | None = "gemini-2.5-flash"
 
 
+def _gemini_subprocess_env() -> dict[str, str]:
+    """Environment for Gemini CLI subprocesses.
+
+    Gemini CLI requires either an interactively trusted workspace,
+    ``--skip-trust``, or this env var in recent versions. Prefer the env
+    var over a CLI flag because older Gemini CLI versions safely ignore
+    unknown env vars, while an unknown flag would break dispatch.
+    """
+    env = dict(os.environ)
+    env["GEMINI_CLI_TRUST_WORKSPACE"] = "true"
+    return env
+
+
 class GeminiProvider:
     """Conforms to ``LLMProvider`` (structural typing).
 
@@ -125,6 +138,7 @@ class GeminiProvider:
                 [gemini_bin, "--version"],
                 capture_output=True,
                 timeout=_PROBE_TIMEOUT,
+                env=_gemini_subprocess_env(),
             )
             if result.returncode == 0:
                 logger.info("gemini: found at %s", gemini_bin)
@@ -216,6 +230,7 @@ class GeminiProvider:
                 capture_output=True,
                 timeout=timeout,
                 text=False,  # Keep as bytes for .decode() below
+                env=_gemini_subprocess_env(),
             )
         except FileNotFoundError as exc:
             raise LLMError("gemini CLI not found on PATH") from exc
