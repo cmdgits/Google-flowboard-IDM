@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlmodel import delete as sql_delete, select
+from sqlmodel import delete as sql_delete, select, update
 
 from flowboard.db import get_session
 from flowboard.db.models import (
@@ -14,6 +14,7 @@ from flowboard.db.models import (
     Plan,
     PlanRevision,
     Request,
+    Reference,
 )
 
 router = APIRouter(prefix="/api/boards", tags=["boards"])
@@ -100,6 +101,14 @@ def delete_board(board_id: int):
         if plan_ids:
             s.exec(sql_delete(PipelineRun).where(PipelineRun.plan_id.in_(plan_ids)))
             s.exec(sql_delete(PlanRevision).where(PlanRevision.plan_id.in_(plan_ids)))
+
+        # Unlink curated references from this board so they persist in the
+        # library but don't trigger FK constraint errors on board deletion.
+        s.exec(
+            update(Reference)
+            .where(Reference.source_board_id == board_id)
+            .values(source_board_id=None)
+        )
 
         # Edge has FK on Node (source_id, target_id) — must clear before Node.
         s.exec(sql_delete(Edge).where(Edge.board_id == board_id))
