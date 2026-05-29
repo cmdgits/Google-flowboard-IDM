@@ -1,34 +1,51 @@
-"""Claude provider — thin LLMProvider wrapper around the existing
-``claude_cli`` subprocess module.
-
-Existing tested code paths in ``services/claude_cli.py`` stay untouched.
-This module just adapts that interface to the ``LLMProvider`` Protocol so
-the registry can dispatch to it through the unified surface.
-
-When the multi-LLM plan reaches Step 5 (migrate prompt_synth / vision /
-planner to use ``run_llm``), each call site stops importing claude_cli
-directly and goes through the registry. ``claude_cli`` itself remains
-as the subprocess implementation detail.
-
-**Error type contract**: callers using ``run_llm`` see ``LLMError`` (and
-nothing else) on failure. ``claude_cli.run_claude`` raises ``ClaudeCliError``
-which we translate here so the contract stays clean — without this wrap,
-a caller's ``except LLMError:`` would miss every Claude failure mode.
-"""
+"""Claude provider — HTTP client for Anthropic's Claude API."""
 from __future__ import annotations
 
+import base64
+import logging
+import mimetypes
+import os
+from pathlib import Path
 from typing import Optional
 
-from flowboard.services import claude_cli
+import httpx
 
 from .base import LLMError
+from .cli_utils import (
+    validate_prompt_size,
+    validate_attachment_paths,
+)
+from . import secrets
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_MODEL = "claude-3-5-sonnet-20241022"
 
 
 class ClaudeProvider:
-    """Conforms to ``LLMProvider`` (structural typing — no inheritance)."""
+    """Conforms to ``LLMProvider`` (structural typing)."""
 
     name: str = "claude"
-    supports_vision: bool = True  # Haiku 4.5 / Sonnet / Opus all have vision
+    supports_vision: bool = True
+    test_timeout_secs: float = 30.0
+
+    def __init__(self) -> None:
+        self._available: Optional[bool] = None
+
+    # ── availability ──────────────────────────────────────────────────
+
+    async def is_available(self) -> bool:
+        """Cached check: does the user have an API key configured?"""
+        if self._available is None:
+            self._available = bool(secrets.get_api_key("claude"))
+            logger.info("claude: available=%s", self._available)
+        return self._available
+
+    def reset_cache(self) -> None:
+        """Testing hook + Settings panel rescan support."""
+        self._available = None
+
+    # ── dispatch ──────────────────────────────────────────────────────
 
     async def run(
         self,
@@ -38,17 +55,89 @@ class ClaudeProvider:
         attachments: Optional[list[str]] = None,
         timeout: float = 90.0,
     ) -> str:
+        """Invoke Anthropic Messages API."""
         try:
-            return await claude_cli.run_claude(
-                user_prompt,
-                system_prompt=system_prompt,
-                attachments=attachments,
-                timeout=timeout,
-            )
-        except claude_cli.ClaudeCliError as exc:
-            # Preserve the original message + chain for diagnostics, but
-            # surface as LLMError so the contract holds for callers.
-            raise LLMError(str(exc)) from exc
+            validate_prompt_size(user_prompt)
+            if system_prompt:
+                validate_prompt_size(system_prompt)
+            validate_attachment_paths(attachments)
+        except ValueError as exc:
+            raise LLMError(f"Invalid input: {exc}") from exc
 
-    async def is_available(self) -> bool:
-        return await claude_cli.is_available()
+        api_key = secrets.get_api_key("claude")
+        if not api_key:
+            raise LLMError("Claude API key is missing. Please set it in Settings.")
+
+        model = os.environ.get("FLOWBOARD_CLAUDE_MODEL") or _DEFAULT_MODEL
+        url = "https://api.anthropic.com/v1/messages"
+
+        content = []
+        if attachments:
+            for path in attachments:
+                mime_type, _ = mimetypes.guess_type(path)
+                if not mime_type or not mime_type.startswith("image/"):
+                    mime_type = "image/jpeg"
+                try:
+                    with open(path, "rb") as f:
+                        data = base64.b64encode(f.read()).decode("ascii")
+                except Exception as exc:
+                    raise LLMError(f"Failed to read attachment {path}: {exc}") from exc
+                
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime_type,
+                        "data": data,
+                    }
+                })
+
+        content.append({"type": "text", "text": user_prompt})
+
+        payload = {
+            "model": model,
+            "max_tokens": 4096,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ]
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload, headers=headers, timeout=timeout)
+        except httpx.HTTPError as exc:
+            raise LLMError(f"Claude API request failed: {exc}") from exc
+        except Exception as exc:
+            raise LLMError(f"Claude API error: {exc}") from exc
+
+        if resp.status_code != 200:
+            try:
+                err_data = resp.json()
+                err_msg = err_data.get("error", {}).get("message", resp.text)
+            except Exception:
+                err_msg = resp.text
+            raise LLMError(f"Claude API returned HTTP {resp.status_code}: {err_msg}")
+
+        try:
+            data = resp.json()
+            content_blocks = data.get("content", [])
+            if not content_blocks:
+                raise LLMError("Claude returned empty content")
+            
+            response_texts = [block.get("text", "") for block in content_blocks if block.get("type") == "text"]
+            return "".join(response_texts).strip()
+        except Exception as exc:
+            if isinstance(exc, LLMError):
+                raise
+            raise LLMError(f"Failed to parse Claude response: {exc}") from exc

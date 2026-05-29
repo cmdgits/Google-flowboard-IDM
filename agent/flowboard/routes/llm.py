@@ -25,7 +25,6 @@ from pydantic import BaseModel
 
 from flowboard.services.llm import registry, secrets
 from flowboard.services.llm.base import LLMError
-from flowboard.services import claude_cli
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +56,6 @@ _VALID_FEATURES = ("auto_prompt", "vision", "planner")
 # ── GET /api/llm/providers ────────────────────────────────────────────
 
 
-@router.post("/debug/reset-probe")
-async def debug_reset_probe() -> dict:
-    """Force re-probe Claude CLI (debug endpoint)."""
-    claude_cli.reset_availability_cache()
-    available = await claude_cli.is_available(force=True)
-    return {"ok": True, "claude_available": available}
 
 
 @router.get("/providers")
@@ -82,17 +75,9 @@ async def list_providers() -> list[dict]:
         # "user has set things up but the key is bad" from "user hasn't
         # set anything up yet".
         available = await provider.is_available()
-        if provider.name == "openai":
-            mode = provider.mode  # type: ignore[attr-defined]
-            configured = (
-                bool(secrets.get_api_key("openai"))
-                or getattr(provider, "_cli_available", False)
-            )
-            requires_key = False  # CLI path doesn't require it
-        else:
-            mode = "cli"
-            configured = available
-            requires_key = False
+        mode = "api"
+        configured = available
+        requires_key = True
 
         out.append({
             "name": provider.name,
@@ -118,7 +103,7 @@ async def set_provider_key(name: str, body: _ApiKeyBody) -> dict:
     """
     if name not in _VALID_PROVIDER_NAMES:
         raise HTTPException(status_code=404, detail=f"unknown provider {name!r}")
-    if name != "openai":
+    if name not in ("openai", "gemini"):
         raise HTTPException(
             status_code=400,
             detail=f"{name} doesn't accept API keys; uses CLI auth instead",

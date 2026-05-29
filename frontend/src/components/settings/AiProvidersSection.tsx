@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getLlmConfig,
   getLlmProviders,
+  setLlmApiKey,
   setLlmConfig,
   testLlmProvider,
   type LLMConfig,
@@ -108,6 +109,23 @@ export function AiProvidersSection() {
   const [applying, setApplying] = useState(false);
   const [helpFor, setHelpFor] = useState<LLMProviderName | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
+
+  async function handleSaveKey() {
+    if (!pending || !apiKeyInput.trim()) return;
+    setSavingKey(true);
+    try {
+      await setLlmApiKey(pending, apiKeyInput.trim());
+      showToast("API key saved successfully.");
+      setApiKeyInput("");
+      await refresh();
+    } catch (err) {
+      showToast(`Failed to save key: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      if (aliveRef.current) setSavingKey(false);
+    }
+  }
 
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -313,18 +331,47 @@ export function AiProvidersSection() {
               <div className="selection-panel__heading">
                 {labelOf(pending)} needs setup
               </div>
-              <div className="selection-panel__setup-text">
-                {pendingProvider.lastError === "not_authenticated"
-                  ? "The CLI is installed but not signed in. Open Setup help for the login command."
-                  : "Install the CLI from npm and sign in. Open Setup help for the exact commands."}
-              </div>
-              <button
-                type="button"
-                className="selection-panel__setup-btn"
-                onClick={() => setHelpFor(pending)}
-              >
-                Setup help →
-              </button>
+              {pendingProvider.requiresKey ? (
+                <div className="selection-panel__setup-api">
+                  <div className="selection-panel__setup-text" style={{ marginBottom: "16px" }}>
+                    This provider requires an API key. Please enter it below.
+                  </div>
+                  <div className="api-key-form" style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="password"
+                      placeholder={pendingProvider.configured ? "(Key configured. Paste new to change)" : "Paste your API key here..."}
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      disabled={savingKey}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-elevated)", color: "var(--fg-default)" }}
+                    />
+                    <button
+                      type="button"
+                      className="selection-panel__apply-btn"
+                      onClick={handleSaveKey}
+                      disabled={savingKey || !apiKeyInput.trim()}
+                      style={{ margin: 0 }}
+                    >
+                      {savingKey ? "Saving..." : "Save Key"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="selection-panel__setup-text">
+                    {pendingProvider.lastError === "not_authenticated"
+                      ? "The CLI is installed but not signed in. Open Setup help for the login command."
+                      : "Install the CLI from npm and sign in. Open Setup help for the exact commands."}
+                  </div>
+                  <button
+                    type="button"
+                    className="selection-panel__setup-btn"
+                    onClick={() => setHelpFor(pending)}
+                  >
+                    Setup help →
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             // Ready branch: provider is connected. Show ONE connection
@@ -365,7 +412,34 @@ export function AiProvidersSection() {
                 </button>
               </div>
 
-              <CliReference provider={pending} />
+              {pendingProvider.requiresKey ? (
+                <div className="selection-panel__change-key" style={{ marginTop: "24px", paddingTop: "24px", borderTop: "1px solid var(--border-muted)" }}>
+                  <div className="selection-panel__setup-text" style={{ marginBottom: "16px" }}>
+                    Update your API key: {pendingProvider.configured && <span style={{ color: "var(--fg-success)", marginLeft: "4px" }}>✓ Saved</span>}
+                  </div>
+                  <div className="api-key-form" style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="password"
+                      placeholder={pendingProvider.configured ? "(Key configured. Paste new to change)" : "Paste your new API key here..."}
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      disabled={savingKey}
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-elevated)", color: "var(--fg-default)" }}
+                    />
+                    <button
+                      type="button"
+                      className="selection-panel__apply-btn"
+                      onClick={handleSaveKey}
+                      disabled={savingKey || !apiKeyInput.trim()}
+                      style={{ margin: 0 }}
+                    >
+                      {savingKey ? "Saving..." : "Save Key"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <CliReference provider={pending} />
+              )}
             </>
           )}
         </div>
