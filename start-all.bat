@@ -1,0 +1,46 @@
+@echo off
+setlocal
+echo =======================================
+echo Flowboard Startup Script
+echo =======================================
+echo.
+echo Chon che do chay (Select run mode):
+echo [1] Chay an (Hide CMD windows)
+echo [2] Mo giao dien (Show CMD windows)
+set /p RUN_MODE="Chon (1/2): "
+
+if "%RUN_MODE%"=="1" goto hidden
+goto shown
+
+:hidden
+echo Dang chay Backend va Frontend an... (Starting in background...)
+echo Set WshShell = CreateObject("WScript.Shell") > run_hidden.vbs
+echo WshShell.Run "cmd /c cd /d """ ^& WScript.Arguments(0) ^& """ && call .venv\Scripts\activate.bat && python -m uvicorn flowboard.main:app --host 127.0.0.1 --port 8101", 0, False >> run_hidden.vbs
+echo WshShell.Run "cmd /c cd /d """ ^& WScript.Arguments(1) ^& """ && npm run dev", 0, False >> run_hidden.vbs
+
+cscript //nologo run_hidden.vbs "%~dp0agent" "%~dp0frontend"
+del run_hidden.vbs
+
+echo Vui long doi 5 giay de he thong khoi dong...
+timeout /t 5 /nobreak >nul
+start http://127.0.0.1:5173
+echo Flowboard dang chay ngam!
+echo Luu y: De tat, ban can vao Task Manager de tat 'python.exe' va 'node.exe'
+pause
+exit
+
+:shown
+echo Dang chay Backend...
+cd /d "%~dp0agent"
+start "Flowboard Backend" cmd /k "call .venv\Scripts\activate.bat && python -m uvicorn flowboard.main:app --host 127.0.0.1 --port 8101"
+
+echo Dang chay Frontend...
+cd /d "%~dp0frontend"
+start "Flowboard Frontend" cmd /k "npm run dev"
+
+echo Vui long doi 5 giay de he thong khoi dong...
+timeout /t 5 /nobreak >nul
+start http://127.0.0.1:5173
+echo Flowboard da duoc khoi dong!
+pause
+exit
