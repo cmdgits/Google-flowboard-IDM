@@ -6611,3 +6611,19 @@ button:disabled {
   opacity: 0.6;
   font-family: ui-monospace, monospace;
 }
+
+.social-dialog__btn--schedule {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.social-dialog__btn--schedule:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__btn--schedule:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

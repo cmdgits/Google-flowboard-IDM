@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSocialBlockStore } from "../store/socialBlock";
 import { useBoardStore, type FlowboardNodeData } from "../store/board";
 import { mediaUrl } from "../api/client";
+import { SchedulePostModal } from "./SchedulePostModal";
 
 const PLATFORM_LIST = ["facebook", "tiktok", "youtube", "instagram"] as const;
 
@@ -54,6 +55,7 @@ export function SocialBlockDialog() {
   const [caption, setCaption] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [linkedContent, setLinkedContent] = useState<{ texts: string[]; mediaIds: string[] }>({ texts: [], mediaIds: [] });
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -168,10 +170,55 @@ export function SocialBlockDialog() {
         </div>
 
         <div className="social-dialog__footer">
-          <button type="button" className="social-dialog__btn social-dialog__btn--cancel" onClick={close}>Hủy</button>
-          <button type="button" className="social-dialog__btn social-dialog__btn--ai" onClick={handleGenAI} disabled={aiGenerating}>{aiGenerating ? "⏳ Đang tạo…" : "🤖 Generate AI"}</button>
-          <button type="button" className="social-dialog__btn social-dialog__btn--save" onClick={handleSave} disabled={aiGenerating}>💾 Lưu<span className="social-dialog__shortcut">⌘↵</span></button>
+          <button
+            type="button"
+            className="social-dialog__btn social-dialog__btn--cancel"
+            onClick={close}
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            className="social-dialog__btn social-dialog__btn--ai"
+            onClick={handleGenAI}
+            disabled={aiGenerating}
+          >
+            {aiGenerating ? "⏳ Đang tạo…" : "🤖 Generate AI"}
+          </button>
+          <button
+            type="button"
+            className="social-dialog__btn social-dialog__btn--schedule"
+            onClick={() => setShowScheduleModal(true)}
+            disabled={platforms.length === 0}
+            title="Lên lịch đăng bài"
+          >
+            📅 Schedule
+          </button>
+          <button
+            type="button"
+            className="social-dialog__btn social-dialog__btn--save"
+            onClick={handleSave}
+            disabled={aiGenerating}
+          >
+            💾 Lưu
+            <span className="social-dialog__shortcut">⌘↵</span>
+          </button>
         </div>
+
+        {/* Schedule Modal */}
+        <SchedulePostModal
+          assetId={parseInt(openRfId || "0")}
+          open={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={(data) => {
+            useBoardStore.getState().updateNodeData(openRfId, {
+              platforms,
+              content: caption,
+              scheduledTime: data.scheduled_time,
+            });
+            setShowScheduleModal(false);
+          }}
+        />
       </div>
     </div>
   );
