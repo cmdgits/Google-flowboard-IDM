@@ -65,9 +65,49 @@ async def _run_social_scheduler() -> None:
         await asyncio.sleep(60)
 
 
+def _auto_import_facebook_accounts() -> None:
+    """Auto-import Facebook accounts from .env file."""
+    import os
+    from sqlmodel import select
+    from flowboard.db.models import SocialAccount
+    
+    page_id = os.getenv("FB_PAGE_2_ID")
+    page_token = os.getenv("FB_PAGE_2_ACCESS_TOKEN")
+    page_name = os.getenv("FB_PAGE_2_NAME", "Facebook Page")
+    
+    if not page_id or not page_token:
+        return
+    
+    try:
+        with get_session() as session:
+            # Check if account already exists
+            existing = session.exec(
+                select(SocialAccount).where(
+                    SocialAccount.account_id == page_id,
+                    SocialAccount.platform == "facebook"
+                )
+            ).first()
+            
+            if not existing:
+                account = SocialAccount(
+                    platform="facebook",
+                    account_id=page_id,
+                    access_token=page_token,
+                    account_name=page_name,
+                )
+                session.add(account)
+                session.commit()
+                logger.info(f"✅ Auto-imported Facebook account: {page_name} ({page_id})")
+            else:
+                logger.info(f"ℹ️ Facebook account already exists: {page_name}")
+    except Exception as e:
+        logger.error(f"❌ Failed to auto-import Facebook account: {str(e)}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _auto_import_facebook_accounts()  # Auto-import Facebook account
     recovered = _recover_orphan_running_requests()
     if recovered:
         logger.info("recovered %d orphan running request(s) → failed", recovered)
