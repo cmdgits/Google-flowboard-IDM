@@ -1617,9 +1617,16 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
   };
 
   return (
-    <div className="social-block-node-body">
-      {/* Header with platforms */}
-      <div className="social-block-header-compact">
+    <div className="social-block-node">
+      {/* Header with icon and title */}
+      <div className="social-block-header">
+        <span className="social-block-icon">📱</span>
+        <span className="social-block-title">Social Block</span>
+      </div>
+
+      {/* Body content */}
+      <div className="social-block-body">
+        {/* Platforms display */}
         <div className="social-block-platforms">
           {platforms.length > 0 ? (
             platforms.map((platform) => (
@@ -1636,18 +1643,34 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
             <span className="social-block-hint">No platforms</span>
           )}
         </div>
+
+        {/* Content preview */}
+        {content && (
+          <div className="social-block-content-preview">
+            {content.length > 60 ? content.substring(0, 60) + "..." : content}
+          </div>
+        )}
       </div>
 
-      {/* Content preview */}
-      {content && (
-        <div className="social-block-content-preview">
-          {content.length > 60 ? content.substring(0, 60) + "..." : content}
-        </div>
-      )}
+      {/* Action buttons */}
+      <div className="social-block-actions">
+        <button
+          className="social-block-btn social-block-btn--configure"
+          onClick={() => setShowPanel(!showPanel)}
+        >
+          ⚙️ Configure
+        </button>
+        <button
+          className="social-block-btn social-block-btn--schedule"
+          onClick={() => alert("Schedule feature coming soon")}
+        >
+          📅 Schedule
+        </button>
+      </div>
 
       {/* Configuration Panel */}
-      {showPanel ? (
-        <div className="social-block-panel-expanded">
+      {showPanel && (
+        <div className="social-block-panel">
           {/* Platforms Section */}
           <div className="social-block-panel-section">
             <label className="social-block-label">📱 Platforms</label>
