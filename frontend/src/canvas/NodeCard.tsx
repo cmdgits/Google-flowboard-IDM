@@ -6,7 +6,6 @@ import { mediaUrl, patchEdge, patchNode, uploadImage, uploadImageFromUrl } from 
 import { requestAutoBrief } from "../api/autoBrief";
 import { useReferencesStore } from "../store/references";
 import { SchedulePostModal } from "../components/SchedulePostModal";
-import { SocialBlockNode } from "./SocialBlockNode";
 import {
   normaliseStoryboardGrid,
   resolveStoryboardLayout,
@@ -1495,8 +1494,73 @@ function NodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
     case "Storyboard":
       return <StoryboardBody rfId={rfId} data={data} />;
     case "social_block":
-      return <SocialBlockNode {...(props as NodeProps<FlowNode>)} />;
+      return <SocialBlockNodeBody rfId={rfId} data={data} />;
   }
+}
+
+function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
+  const [showPanel, setShowPanel] = useState(false);
+  const [platforms, setPlatforms] = useState<string[]>(data.platforms || []);
+  const [content, setContent] = useState(data.content || "");
+
+  const platformIcons: Record<string, string> = {
+    facebook: "f",
+    tiktok: "♪",
+    youtube: "▶",
+    instagram: "📷",
+  };
+
+  const platformColors: Record<string, string> = {
+    facebook: "#1877F2",
+    tiktok: "#000000",
+    youtube: "#FF0000",
+    instagram: "#E4405F",
+  };
+
+  return (
+    <div className="social-block-body-content">
+      <div className="social-block-platforms">
+        {platforms.length > 0 ? (
+          platforms.map((platform) => (
+            <div
+              key={platform}
+              className="social-block-platform-badge"
+              style={{ backgroundColor: platformColors[platform] || "#ccc" }}
+              title={platform}
+            >
+              {platformIcons[platform] || "●"}
+            </div>
+          ))
+        ) : (
+          <span className="social-block-hint">No platforms selected</span>
+        )}
+      </div>
+
+      {content && (
+        <div className="social-block-content-preview">
+          {content.length > 50 ? content.substring(0, 50) + "..." : content}
+        </div>
+      )}
+
+      <div className="social-block-actions">
+        <button
+          type="button"
+          className="social-block-btn social-block-btn--configure"
+          onClick={() => setShowPanel(!showPanel)}
+          title="Configure block"
+        >
+          ⚙️
+        </button>
+        <button
+          type="button"
+          className="social-block-btn social-block-btn--schedule"
+          title="Schedule post"
+        >
+          📅
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function downloadExt(type: string): string {
