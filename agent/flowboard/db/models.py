@@ -173,3 +173,43 @@ class BoardFlowProject(SQLModel, table=True):
     board_id: int = Field(primary_key=True, foreign_key="board.id")
     flow_project_id: str
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class SocialAccount(SQLModel, table=True):
+    """OAuth credentials for social media platforms.
+    
+    Stores access tokens and refresh tokens for Facebook, TikTok, YouTube, etc.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    platform: str = Field(index=True)  # facebook | tiktok | youtube | instagram
+    account_id: str = Field(index=True)  # Platform-specific account/page ID
+    access_token: str  # OAuth access token
+    refresh_token: Optional[str] = None  # For platforms that support refresh
+    token_expires_at: Optional[datetime] = None
+    account_name: Optional[str] = None  # Display name (page name, username, etc.)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+    __table_args__ = (
+        UniqueConstraint(
+            "platform", "account_id",
+            name="uq_social_account",
+        ),
+    )
+
+
+class ScheduledPost(SQLModel, table=True):
+    """Scheduled posts for social media platforms.
+    
+    Tracks when and where to post assets (videos, images).
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    asset_id: int = Field(foreign_key="asset.id", index=True)
+    social_account_id: int = Field(foreign_key="socialaccount.id", index=True)
+    platform: str  # facebook | tiktok | youtube | instagram
+    caption: str = ""  # Post caption/description
+    scheduled_time: datetime  # When to post
+    status: str = "pending"  # pending | posted | failed | cancelled
+    posted_url: Optional[str] = None  # URL to the posted content
+    error_message: Optional[str] = None  # Error details if failed
+    created_at: datetime = Field(default_factory=_utcnow)
+    posted_at: Optional[datetime] = None

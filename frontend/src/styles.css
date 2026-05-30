@@ -5737,3 +5737,280 @@ button:disabled {
   animation: none;
 }
 
+
+/* -- Social Media Accounts Section ---------------------------------------- */
+
+.social-accounts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.social-account-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel-high);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+.social-account-item:hover {
+  background: var(--panel-higher);
+  border-color: var(--accent);
+}
+
+.social-account-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.social-account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.social-account-platform {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.social-account-name {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.social-account-disconnect {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 80ms ease, border-color 80ms ease, color 80ms ease;
+}
+
+.social-account-disconnect:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.social-connect-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.social-connect-btn {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-high);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+.social-connect-btn:hover:not(:disabled) {
+  background: var(--panel-higher);
+  border-color: var(--accent);
+}
+
+.social-connect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* -- Schedule Post Modal -------------------------------------------------- */
+
+.schedule-post-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.schedule-post-modal {
+  width: min(92vw, 480px);
+  background: var(--panel-higher);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+.schedule-post-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.schedule-post-modal__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.schedule-post-modal__close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 20px;
+  transition: color 80ms ease;
+}
+
+.schedule-post-modal__close:hover {
+  color: var(--text);
+}
+
+.schedule-post-modal__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.schedule-post-modal__error {
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 12px;
+}
+
+.schedule-post-modal__loading,
+.schedule-post-modal__empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.schedule-post-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.schedule-post-modal__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.schedule-post-modal__select,
+.schedule-post-modal__input,
+.schedule-post-modal__textarea {
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color 80ms ease;
+}
+
+.schedule-post-modal__select:focus,
+.schedule-post-modal__input:focus,
+.schedule-post-modal__textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.18);
+}
+
+.schedule-post-modal__textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.schedule-post-modal__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.schedule-post-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.schedule-post-modal__btn {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-high);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+.schedule-post-modal__btn:hover:not(:disabled) {
+  background: var(--panel);
+  border-color: var(--muted);
+}
+
+.schedule-post-modal__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.schedule-post-modal__btn--schedule {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.schedule-post-modal__btn--schedule:hover:not(:disabled) {
+  filter: brightness(1.08);
+}

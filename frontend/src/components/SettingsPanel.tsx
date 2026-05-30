@@ -6,6 +6,7 @@ import {
   type VideoQuality,
 } from "../store/settings";
 import { getLatestRelease, isNewerVersion, type LatestRelease } from "../api/github";
+import { SocialAccountsSection } from "./settings/SocialAccountsSection";
 import packageJson from "../../package.json";
 
 const APP_VERSION: string = packageJson.version;
@@ -256,6 +257,8 @@ export function SettingsPanel({ open, onClose, onLogout, logoutPending }: Settin
           ))}
         </div>
       </div>
+
+      <SocialAccountsSection />
 
       <div className="settings-panel__section">
         <div className="settings-panel__label">About</div>

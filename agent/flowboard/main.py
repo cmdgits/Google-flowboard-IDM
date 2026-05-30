@@ -9,12 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from flowboard.config import WS_HOST
 from flowboard.db import get_session, init_db
 from flowboard.db.models import Request
-from flowboard.routes import activity, auth, boards, chat, edges, flow_projects, llm, media, nodes, plans, projects, prompt, upload, vision
+from flowboard.routes import activity, auth, boards, chat, edges, flow_projects, llm, media, nodes, plans, projects, prompt, social, upload, vision
 from flowboard.routes import references as references_route
 from flowboard.routes import requests as requests_route
 from flowboard.services.flow_client import flow_client
 from flowboard.services.ws_server import run_ws_server
 from flowboard.worker.processor import get_worker
+from flowboard.worker.social_scheduler import process_scheduled_posts
 
 # Guard rail: the dedicated WS server is unauthenticated and would expose the
 # callback secret to any process that can reach it. Refuse to boot if someone
@@ -49,6 +50,17 @@ def _recover_orphan_running_requests() -> int:
     return touched
 
 
+async def _run_social_scheduler() -> None:
+    """Background task that processes scheduled social media posts every minute."""
+    while True:
+        try:
+            await process_scheduled_posts()
+        except Exception as e:
+            logger.error(f"Error in social scheduler: {e}")
+        # Check every 60 seconds
+        await asyncio.sleep(60)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -58,7 +70,8 @@ async def lifespan(app: FastAPI):
     worker = get_worker()
     ws_task = asyncio.create_task(run_ws_server(), name="ext-ws-server")
     worker_task = asyncio.create_task(worker.start(), name="request-worker")
-    logger.info("flowboard agent started (ws:9223 + worker)")
+    scheduler_task = asyncio.create_task(_run_social_scheduler(), name="social-scheduler")
+    logger.info("flowboard agent started (ws:9223 + worker + social-scheduler)")
     try:
         yield
     finally:
@@ -67,9 +80,9 @@ async def lifespan(app: FastAPI):
             await asyncio.wait_for(worker.drain(), timeout=5.0)
         except asyncio.TimeoutError:
             logger.warning("worker drain timed out")
-        for t in (ws_task, worker_task):
+        for t in (ws_task, worker_task, scheduler_task):
             t.cancel()
-        await asyncio.gather(ws_task, worker_task, return_exceptions=True)
+        await asyncio.gather(ws_task, worker_task, scheduler_task, return_exceptions=True)
         logger.info("flowboard agent stopped")
 
 
@@ -99,6 +112,7 @@ app.include_router(vision.router)
 app.include_router(prompt.router)
 app.include_router(auth.router)
 app.include_router(llm.router)
+app.include_router(social.router)
 app.include_router(activity.router)
 
 
