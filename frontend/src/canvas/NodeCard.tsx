@@ -1047,6 +1047,7 @@ function VisualAssetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
   const [linkMode, setLinkMode] = useState(false);
   const [linkValue, setLinkValue] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const dbId = parseInt(rfId, 10);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const refInputRef = useRef<HTMLInputElement>(null);
 
@@ -1314,10 +1315,82 @@ function VisualAssetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
             value={refinePrompt}
             onChange={(e) => setRefinePrompt(e.target.value)}
           />
-          <div className="visual-asset__refine-actions">
-            <button
-              type="button"
-      const dbId = parseInt(rfId, 10);
+           <div className="visual-asset__refine-actions">
+             <button
+               type="button"
+               className="visual-asset__refine-ref"
+               onClick={() => refInputRef.current?.click()}
+             >
+               {refMediaId ? `Ref ✓ (${refRefreshKey})` : "Add ref"}
+             </button>
+             <button
+               type="button"
+               className="visual-asset__refine-submit"
+               disabled={!refinePrompt.trim()}
+               onClick={submitRefine}
+             >
+               Refine →
+             </button>
+           </div>
+           <input
+             ref={refInputRef}
+             type="file"
+             accept="image/png,image/jpeg,image/webp,image/gif"
+             style={{ display: "none" }}
+             onChange={(e) => {
+               const f = e.target.files?.[0];
+               if (f) uploadRef(f);
+               e.target.value = "";
+             }}
+           />
+         </div>
+       )}
+       {error && <p className="visual-asset__error">{error}</p>}
+       {!isNaN(dbId) && mediaId && (
+         <SchedulePostModal
+           assetId={dbId}
+           open={scheduleOpen}
+           onClose={() => setScheduleOpen(false)}
+         />
+       )}
+     </div>
+   );
+ }
+
+ // Shared editable body for prompt + note nodes. Both store free-form text
+ // in `data.prompt`; only display markup differs. Double-click swaps to a
+ // textarea; blur or Cmd/Ctrl+Enter saves; Esc cancels.
+ function EditableTextBody({
+   rfId,
+   data,
+   variant,
+ }: {
+   rfId: string;
+   data: FlowboardNodeData;
+   variant: "prompt" | "note";
+ }) {
+   const [editing, setEditing] = useState(false);
+   const [draft, setDraft] = useState(data.prompt ?? "");
+   const taRef = useRef<HTMLTextAreaElement>(null);
+
+   useEffect(() => {
+     if (editing) {
+       setDraft(data.prompt ?? "");
+       requestAnimationFrame(() => {
+         const ta = taRef.current;
+         if (ta) {
+           ta.focus();
+           ta.setSelectionRange(ta.value.length, ta.value.length);
+         }
+       });
+     }
+   }, [editing]);
+
+   function save() {
+     const next = draft;
+     if (next !== (data.prompt ?? "")) {
+       useBoardStore.getState().updateNodeData(rfId, { prompt: next });
+       const dbId = parseInt(rfId, 10);
       if (!isNaN(dbId)) {
         // Backend merges `data`, so only the prompt delta needs shipping.
         patchNode(dbId, { data: { prompt: next } }).catch(() => {});
