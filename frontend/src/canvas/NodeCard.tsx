@@ -1561,14 +1561,6 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
         >
           ▶ Generate
         </button>
-        <button
-          type="button"
-          className="visual-asset__action"
-          onClick={(e) => { e.stopPropagation(); openDialog(); }}
-          title="Cấu hình platform"
-        >
-          ⚙️
-        </button>
       </div>
     </div>
   );

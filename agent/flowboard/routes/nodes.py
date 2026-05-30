@@ -144,6 +144,18 @@ def delete_node(node_id: int):
         node = s.get(Node, node_id)
         if not node:
             raise HTTPException(404, "node not found")
+        # Cascade delete associated SocialBlock and SocialBlockPost rows
+        from flowboard.db.models import SocialBlock, SocialBlockPost
+        block = s.exec(
+            select(SocialBlock).where(SocialBlock.node_id == node_id)
+        ).first()
+        if block:
+            posts = s.exec(
+                select(SocialBlockPost).where(SocialBlockPost.social_block_id == block.id)
+            ).all()
+            for p in posts:
+                s.delete(p)
+            s.delete(block)
         # Detach historical children FIRST so the FK constraint is satisfied.
         orphan_requests = s.exec(
             select(Request).where(Request.node_id == node_id)
