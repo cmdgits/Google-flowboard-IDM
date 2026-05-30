@@ -142,6 +142,7 @@ const TYPE_TITLE: Record<NodeType, string> = {
   note: "Note",
   visual_asset: "Visual asset",
   Storyboard: "Storyboard",
+  social_block: "Social Block",
 };
 
 // ── Persisted active-board id ─────────────────────────────────────────────
