@@ -33,10 +33,26 @@ export function SocialAccountsSection() {
     }
   };
 
-  const handleConnect = (platform: string) => {
-    // TODO: Implement OAuth flow for each platform
-    // For now, show a placeholder message
-    alert(`OAuth flow for ${platform} would open here`);
+  const handleConnect = async (platform: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get OAuth authorization URL from backend
+      const response = await fetch(`/api/social/oauth/${platform}/authorize`);
+      if (!response.ok) throw new Error(`Failed to get OAuth URL for ${platform}`);
+      
+      const data = await response.json();
+      const authorizeUrl = data.authorize_url;
+      
+      if (!authorizeUrl) throw new Error("No authorization URL returned");
+      
+      // Redirect to OAuth provider
+      window.location.href = authorizeUrl;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to connect ${platform}`);
+      setLoading(false);
+    }
   };
 
   const handleDisconnect = async (accountId: number) => {
