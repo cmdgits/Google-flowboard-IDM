@@ -5,7 +5,7 @@ Handles CRUD operations for Social Blocks and scheduling posts.
 import logging
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlmodel import select, Session
 
 from flowboard.db import get_session
@@ -28,7 +28,7 @@ def create_social_block(
     platforms: List[str] = None,
     content: str = "",
     content_type: str = "manual",
-    session: Session = None,
+    session: Session = Depends(get_session),
 ):
     """Create a new Social Block."""
     if session is None:
@@ -70,10 +70,8 @@ def create_social_block(
 # ============================================================================
 
 @router.get("/{block_id}")
-def get_social_block(block_id: int, session: Session = None):
+def get_social_block(block_id: int, session: Session = Depends(get_session)):
     """Get a Social Block by ID."""
-    if session is None:
-        session = next(get_session())
     
     try:
         block = session.exec(
@@ -102,11 +100,9 @@ def get_social_block(block_id: int, session: Session = None):
 def list_social_blocks(
     board_id: int = Query(None),
     status: str = Query(None),
-    session: Session = None,
+    session: Session = Depends(get_session),
 ):
     """List Social Blocks with optional filtering."""
-    if session is None:
-        session = next(get_session())
     
     try:
         query = select(SocialBlock)
@@ -145,11 +141,9 @@ def update_social_block(
     content: str = None,
     content_type: str = None,
     ai_prompt: str = None,
-    session: Session = None,
+    session: Session = Depends(get_session),
 ):
     """Update a Social Block."""
-    if session is None:
-        session = next(get_session())
     
     try:
         block = session.exec(
@@ -198,11 +192,9 @@ def schedule_social_block(
     scheduled_time: datetime,
     is_recurring: bool = False,
     recurrence_pattern: str = None,
-    session: Session = None,
+    session: Session = Depends(get_session),
 ):
     """Schedule a Social Block to post to platforms."""
-    if session is None:
-        session = next(get_session())
     
     try:
         block = session.exec(
@@ -257,10 +249,8 @@ def schedule_social_block(
 # ============================================================================
 
 @router.post("/{block_id}/post")
-async def post_social_block(block_id: int, session: Session = None):
+async def post_social_block(block_id: int, session: Session = Depends(get_session)):
     """Post a Social Block to all scheduled platforms."""
-    if session is None:
-        session = next(get_session())
     
     try:
         block = session.exec(
@@ -355,10 +345,8 @@ async def post_social_block(block_id: int, session: Session = None):
 
 
 @router.get("/{block_id}/status")
-def get_social_block_status(block_id: int, session: Session = None):
+def get_social_block_status(block_id: int, session: Session = Depends(get_session)):
     """Get status of a Social Block and its posts."""
-    if session is None:
-        session = next(get_session())
     
     try:
         block = session.exec(
@@ -399,10 +387,8 @@ def get_social_block_status(block_id: int, session: Session = None):
 # ============================================================================
 
 @router.delete("/{block_id}")
-def delete_social_block(block_id: int, session: Session = None):
+def delete_social_block(block_id: int, session: Session = Depends(get_session)):
     """Delete a Social Block."""
-    if session is None:
-        session = next(get_session())
     
     try:
         block = session.exec(
