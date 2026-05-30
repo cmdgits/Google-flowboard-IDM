@@ -1500,10 +1500,8 @@ function NodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
 }
 
 function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
-  const [showPanel, setShowPanel] = useState(false);
-  const [platforms, setPlatforms] = useState<string[]>(data.platforms || []);
-  const [content, setContent] = useState(data.content || "");
-  const [contentType, setContentType] = useState(data.content_type || "manual");
+  const platforms: string[] = Array.isArray(data.platforms) ? (data.platforms as string[]) : [];
+  const content = (data.content as string) || "";
 
   const platformIcons: Record<string, string> = {
     facebook: "f",
@@ -1519,82 +1517,11 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
     instagram: "#E4405F",
   };
 
-  const handlePlatformToggle = (platform: string) => {
-    setPlatforms((prev) =>
-      prev.includes(platform)
-        ? prev.filter((p) => p !== platform)
-        : [...prev, platform]
-    );
-  };
-
-  const handleSave = () => {
-    useBoardStore.getState().updateNodeData(rfId, {
-      platforms,
-      content,
-      content_type: contentType,
+  const openDialog = () => {
+    // Import dynamically to avoid circular deps
+    import("../store/socialBlock").then(({ useSocialBlockStore }) => {
+      useSocialBlockStore.getState().openSocialBlockDialog(rfId);
     });
-    setShowPanel(false);
-  };
-
-  const handleGenAI = async () => {
-    try {
-      const prompt = `Generate a social media caption for posting to ${platforms.join(", ")}. Keep it engaging and relevant.`;
-      const response = await fetch("/api/llm/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, maxTokens: 200 }),
-      });
-      if (!response.ok) throw new Error("Failed to generate content");
-      const data = await response.json();
-      const generatedContent = data.text || data.content;
-      if (generatedContent) {
-        setContent(generatedContent);
-        setContentType("ai_generated");
-      }
-    } catch (error) {
-      console.error("AI generation error:", error);
-      alert("Failed to generate content with AI");
-    }
-  };
-
-  const handleFromBlock = () => {
-    try {
-      const board = useBoardStore.getState();
-      const edges = board.edges.filter(
-        (edge) => edge.target === rfId || edge.source === rfId
-      );
-      if (edges.length === 0) {
-        alert("No connected blocks found. Connect an Image, Video, or Text block first.");
-        return;
-      }
-      let extractedContent = "";
-      for (const edge of edges) {
-        const connectedNodeId = edge.source === rfId ? edge.target : edge.source;
-        const connectedNode = board.nodes.find((n) => n.id === connectedNodeId);
-        if (connectedNode) {
-          const nodeData = connectedNode.data as FlowboardNodeData;
-          if (nodeData.type === "prompt" || nodeData.type === "note") {
-            extractedContent += nodeData.title || "";
-          } else if (nodeData.type === "visual_asset") {
-            extractedContent += nodeData.title || "Visual asset";
-          } else if (nodeData.type === "image") {
-            extractedContent += nodeData.title || "Image";
-          } else if (nodeData.type === "video") {
-            extractedContent += nodeData.title || "Video";
-          }
-          if (extractedContent) extractedContent += "\n";
-        }
-      }
-      if (extractedContent) {
-        setContent(extractedContent.trim());
-        setContentType("from_connected");
-      } else {
-        alert("Could not extract content from connected blocks");
-      }
-    } catch (error) {
-      console.error("Content linking error:", error);
-      alert("Failed to get content from connected blocks");
-    }
   };
 
   return (
@@ -1613,23 +1540,23 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
             </div>
           ))
         ) : (
-          <span className="social-block-hint">No platforms selected</span>
+          <span className="social-block-hint">Click Configure to set up</span>
         )}
       </div>
 
       {/* Content preview */}
       {content && (
         <div className="social-block-content-preview">
-          {content.length > 60 ? content.substring(0, 60) + "..." : content}
+          {content.length > 80 ? content.substring(0, 80) + "…" : content}
         </div>
       )}
 
-      {/* Action buttons — same style as visual_asset */}
+      {/* Action button — opens popup dialog */}
       <div style={{ display: "flex", gap: 6 }}>
         <button
           type="button"
           className="visual-asset__action"
-          onClick={() => setShowPanel(!showPanel)}
+          onClick={(e) => { e.stopPropagation(); openDialog(); }}
           title="Configure social block"
         >
           ⚙️ Configure
@@ -1637,104 +1564,12 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
         <button
           type="button"
           className="visual-asset__action"
-          onClick={() => alert("Schedule feature coming soon")}
+          onClick={(e) => { e.stopPropagation(); alert("Schedule feature coming soon"); }}
           title="Schedule post"
         >
           📅 Schedule
         </button>
       </div>
-
-      {/* Configuration Panel */}
-      {showPanel && (
-        <div className="social-block-panel">
-          {/* Platforms Section */}
-          <div className="social-block-panel-section">
-            <label className="social-block-label">📱 Platforms</label>
-            <div className="social-block-platform-selector">
-              {["facebook", "tiktok", "youtube", "instagram"].map((platform) => (
-                <label key={platform} className="social-block-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={platforms.includes(platform)}
-                    onChange={() => handlePlatformToggle(platform)}
-                  />
-                  <span
-                    className="social-block-checkbox-icon"
-                    style={{ backgroundColor: platformColors[platform] }}
-                  >
-                    {platformIcons[platform]}
-                  </span>
-                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Content Type Section */}
-          <div className="social-block-panel-section">
-            <label className="social-block-label">📝 Content</label>
-            <select
-              value={contentType}
-              onChange={(e) => setContentType(e.target.value)}
-              className="social-block-select"
-            >
-              <option value="manual">Manual Input</option>
-              <option value="ai_generated">AI Generated</option>
-              <option value="from_connected">From Connected Block</option>
-            </select>
-          </div>
-
-          {/* Content Input */}
-          <div className="social-block-panel-section">
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Nhập nội dung hoặc gen AI..."
-              className="social-block-textarea"
-              rows={4}
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div className="social-block-panel-actions">
-            <button
-              type="button"
-              className="visual-asset__action"
-              title="Generate with AI"
-              onClick={handleGenAI}
-            >
-              🤖 Gen AI
-            </button>
-            <button
-              type="button"
-              className="visual-asset__action"
-              title="Get content from connected block"
-              onClick={handleFromBlock}
-            >
-              📎 From Block
-            </button>
-          </div>
-
-          {/* Save/Cancel */}
-          <div className="social-block-panel-footer" style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button
-              type="button"
-              className="visual-asset__action"
-              onClick={handleSave}
-              style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              className="visual-asset__action"
-              onClick={() => setShowPanel(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

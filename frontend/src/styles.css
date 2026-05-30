@@ -6280,3 +6280,197 @@ button:disabled {
   border-color: var(--accent);
 }
 
+
+/* == Social Block Dialog ================================================ */
+
+.social-dialog__platforms {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.social-dialog__platform-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.social-dialog__platform-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__platform-chip--active {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.social-dialog__platform-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.social-dialog__source-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.social-dialog__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.social-dialog__tab:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__tab--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.social-dialog__tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.social-dialog__tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.social-dialog__tab--active .social-dialog__tab-badge {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.social-dialog__linked-media {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.social-dialog__linked-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.social-dialog__more-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-high);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.social-dialog__regen-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px dashed var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  align-self: flex-start;
+}
+
+.social-dialog__regen-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.social-dialog__btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.social-dialog__btn--cancel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.social-dialog__btn--cancel:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__btn--save {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.social-dialog__btn--save:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.social-dialog__btn--save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.social-dialog__shortcut {
+  font-size: 10px;
+  opacity: 0.6;
+  font-family: ui-monospace, monospace;
+}
