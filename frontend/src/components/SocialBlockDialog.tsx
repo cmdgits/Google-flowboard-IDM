@@ -90,25 +90,62 @@ export function SocialBlockDialog() {
   };
 
   const handleGenAI = async () => {
-    if (platforms.length === 0) { alert("Vui lòng chọn ít nhất 1 platform"); return; }
+    if (platforms.length === 0) {
+      alert("Vui lòng chọn ít nhất 1 platform");
+      return;
+    }
+
     setAiGenerating(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
     try {
-      const context = linkedContent.texts.length > 0 ? `Dựa trên nội dung: "${linkedContent.texts.join(". ")}"` : "";
+      const context = linkedContent.texts.length > 0
+        ? `Dựa trên nội dung: "${linkedContent.texts.join(". ")}". `
+        : "";
       const platformStr = platforms.join(", ");
       const prompt = `${context}Tạo một caption bài đăng sáng tạo và hấp dẫn cho ${platformStr}. Giữ ngắn gọn, sử dụng emoji phù hợp, và có lời kêu gọi hành động.`;
+
       const response = await fetch("/api/llm/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, maxTokens: 300 }),
+        signal: controller.signal,
       });
-      if (!response.ok) throw new Error("AI generation failed");
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.detail || `HTTP ${response.status}`;
+        throw new Error(errorMsg);
+      }
+
       const result = await response.json();
       const generatedContent = result.text || result.content;
-      if (generatedContent) setCaption(generatedContent);
+
+      if (generatedContent) {
+        setCaption(generatedContent);
+      } else {
+        throw new Error("Không nhận được caption từ AI");
+      }
     } catch (error) {
       console.error("AI generation error:", error);
-      alert("Lỗi tạo caption AI");
+      let errorMsg = "Lỗi tạo caption AI";
+
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          errorMsg = "Timeout: Tạo caption AI mất quá lâu (>30s)";
+        } else if (error.message.includes("503")) {
+          errorMsg = "LLM provider chưa được cấu hình. Vui lòng cấu hình trong Settings.";
+        } else if (error.message.includes("Failed to fetch")) {
+          errorMsg = "Lỗi kết nối. Kiểm tra kết nối mạng.";
+        } else {
+          errorMsg = `Lỗi: ${error.message}`;
+        }
+      }
+
+      alert(errorMsg);
     } finally {
+      clearTimeout(timeoutId);
       setAiGenerating(false);
     }
   };

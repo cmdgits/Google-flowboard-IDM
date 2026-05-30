@@ -210,3 +210,81 @@ def set_config(body: _ConfigBody) -> dict:
         secrets.set_feature_provider(feature, provider_name)
     logger.info("llm: config updated providers=%s", updates)
     return {"ok": True}
+
+
+# ── POST /api/llm/generate ────────────────────────────────────────
+
+class GenerateRequest(BaseModel):
+    """POST /api/llm/generate: Generate text using configured LLM."""
+    prompt: str
+    maxTokens: int = 300
+
+
+@router.post("/generate")
+async def generate_caption(body: GenerateRequest) -> dict:
+    """Generate AI caption for Social Block using configured LLM provider.
+    
+    Uses the 'auto_prompt' feature to determine which provider to use.
+    Supports Claude, Gemini, and OpenAI.
+    
+    Returns: {text, provider, tokensUsed} on success
+    Errors: 503 if provider not configured, 500 if generation fails
+    """
+    if not body.prompt or not body.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt cannot be empty")
+    
+    if body.maxTokens < 1 or body.maxTokens > 4000:
+        raise HTTPException(status_code=400, detail="maxTokens must be between 1 and 4000")
+    
+    # Get the configured provider for auto_prompt feature
+    saved_providers = secrets.read_active_providers()
+    provider_name = saved_providers.get("auto_prompt")
+    
+    if not provider_name:
+        raise HTTPException(
+            status_code=503,
+            detail="No LLM provider configured for auto_prompt. Please configure in Settings."
+        )
+    
+    provider = registry.get_provider(provider_name)
+    if provider is None:
+        raise HTTPException(status_code=503, detail=f"Provider {provider_name!r} not found")
+    
+    if not await provider.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail=f"Provider {provider_name!r} is not available. Check API key in Settings."
+        )
+    
+    try:
+        # Call the LLM provider
+        result = await provider.run(
+            body.prompt,
+            max_tokens=body.maxTokens,
+            timeout=30.0
+        )
+        
+        logger.info(
+            "llm: generated caption using %s (tokens: %d)",
+            provider_name,
+            body.maxTokens
+        )
+        
+        return {
+            "text": result,
+            "provider": provider_name,
+            "tokensUsed": body.maxTokens,
+        }
+    except LLMError as exc:
+        logger.error("llm: generation error with %s: %s", provider_name, str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail=f"LLM generation failed: {str(exc)[:200]}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("llm: unexpected error during generation with %s", provider_name)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error: {type(exc).__name__}"
+        )
+
