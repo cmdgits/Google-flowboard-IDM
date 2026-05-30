@@ -62,16 +62,22 @@ export function SocialBlockDialog() {
 
   useEffect(() => {
     if (!openRfId || !data) return;
+
+    // Lấy dữ liệu hiện tại
     setPlatforms(Array.isArray(data.platforms) ? (data.platforms as string[]) : []);
     setCaption((data.content as string) || "");
     setAiGenerating(false);
+
+    // Lấy nội dung liên kết
     const linked = collectLinkedContent(openRfId);
     setLinkedContent(linked);
-    if (linked.texts.length > 0 && !data.content) {
-      setCaption(linked.texts.join("\n\n"));
-    }
+
+    // Không tự động điền caption từ linked blocks
+    // User sẽ tự nhập hoặc dùng Generate AI
+
     setTimeout(() => textareaRef.current?.focus(), 60);
-  }, [openRfId, data]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRfId]);
 
   useEffect(() => {
     if (!openRfId) return;
