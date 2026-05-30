@@ -1538,24 +1538,15 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
 
   const handleGenAI = async () => {
     try {
-      // Usar existing AI generation system do Flowboard
       const prompt = `Generate a social media caption for posting to ${platforms.join(", ")}. Keep it engaging and relevant.`;
-      
-      // Chamar API de AI generation
       const response = await fetch("/api/llm/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          maxTokens: 200,
-        }),
+        body: JSON.stringify({ prompt, maxTokens: 200 }),
       });
-
       if (!response.ok) throw new Error("Failed to generate content");
-      
       const data = await response.json();
       const generatedContent = data.text || data.content;
-      
       if (generatedContent) {
         setContent(generatedContent);
         setContentType("ai_generated");
@@ -1568,28 +1559,20 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
 
   const handleFromBlock = () => {
     try {
-      // Buscar edges conectadas ao Social Block
       const board = useBoardStore.getState();
       const edges = board.edges.filter(
         (edge) => edge.target === rfId || edge.source === rfId
       );
-
       if (edges.length === 0) {
         alert("No connected blocks found. Connect an Image, Video, or Text block first.");
         return;
       }
-
-      // Buscar content dos blocos conectados
       let extractedContent = "";
-      
       for (const edge of edges) {
         const connectedNodeId = edge.source === rfId ? edge.target : edge.source;
         const connectedNode = board.nodes.find((n) => n.id === connectedNodeId);
-        
         if (connectedNode) {
           const nodeData = connectedNode.data as FlowboardNodeData;
-          
-          // Extrair content baseado no tipo de nó
           if (nodeData.type === "prompt" || nodeData.type === "note") {
             extractedContent += nodeData.title || "";
           } else if (nodeData.type === "visual_asset") {
@@ -1599,11 +1582,9 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
           } else if (nodeData.type === "video") {
             extractedContent += nodeData.title || "Video";
           }
-          
           if (extractedContent) extractedContent += "\n";
         }
       }
-
       if (extractedContent) {
         setContent(extractedContent.trim());
         setContentType("from_connected");
@@ -1617,52 +1598,47 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
   };
 
   return (
-    <div className="social-block-node">
-      {/* Header with icon and title */}
-      <div className="social-block-header">
-        <span className="social-block-icon">📱</span>
-        <span className="social-block-title">Social Block</span>
-      </div>
-
-      {/* Body content */}
-      <div className="social-block-body">
-        {/* Platforms display */}
-        <div className="social-block-platforms">
-          {platforms.length > 0 ? (
-            platforms.map((platform) => (
-              <div
-                key={platform}
-                className="social-block-platform-badge"
-                style={{ backgroundColor: platformColors[platform] || "#ccc" }}
-                title={platform}
-              >
-                {platformIcons[platform] || "●"}
-              </div>
-            ))
-          ) : (
-            <span className="social-block-hint">No platforms</span>
-          )}
-        </div>
-
-        {/* Content preview */}
-        {content && (
-          <div className="social-block-content-preview">
-            {content.length > 60 ? content.substring(0, 60) + "..." : content}
-          </div>
+    <div className="node-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Platforms display */}
+      <div className="social-block-platforms">
+        {platforms.length > 0 ? (
+          platforms.map((platform) => (
+            <div
+              key={platform}
+              className="social-block-platform-badge"
+              style={{ backgroundColor: platformColors[platform] || "#ccc" }}
+              title={platform}
+            >
+              {platformIcons[platform] || "●"}
+            </div>
+          ))
+        ) : (
+          <span className="social-block-hint">No platforms selected</span>
         )}
       </div>
 
-      {/* Action buttons */}
-      <div className="social-block-actions">
+      {/* Content preview */}
+      {content && (
+        <div className="social-block-content-preview">
+          {content.length > 60 ? content.substring(0, 60) + "..." : content}
+        </div>
+      )}
+
+      {/* Action buttons — same style as visual_asset */}
+      <div style={{ display: "flex", gap: 6 }}>
         <button
-          className="social-block-btn social-block-btn--configure"
+          type="button"
+          className="visual-asset__action"
           onClick={() => setShowPanel(!showPanel)}
+          title="Configure social block"
         >
           ⚙️ Configure
         </button>
         <button
-          className="social-block-btn social-block-btn--schedule"
+          type="button"
+          className="visual-asset__action"
           onClick={() => alert("Schedule feature coming soon")}
+          title="Schedule post"
         >
           📅 Schedule
         </button>
@@ -1723,7 +1699,7 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
           <div className="social-block-panel-actions">
             <button
               type="button"
-              className="social-block-btn social-block-btn--ai"
+              className="visual-asset__action"
               title="Generate with AI"
               onClick={handleGenAI}
             >
@@ -1731,7 +1707,7 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
             </button>
             <button
               type="button"
-              className="social-block-btn social-block-btn--from-block"
+              className="visual-asset__action"
               title="Get content from connected block"
               onClick={handleFromBlock}
             >
@@ -1740,17 +1716,18 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
           </div>
 
           {/* Save/Cancel */}
-          <div className="social-block-panel-footer">
+          <div className="social-block-panel-footer" style={{ display: "flex", gap: 6, marginTop: 8 }}>
             <button
               type="button"
-              className="social-block-btn social-block-btn--save"
+              className="visual-asset__action"
               onClick={handleSave}
+              style={{ background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" }}
             >
               Save
             </button>
             <button
               type="button"
-              className="social-block-btn social-block-btn--cancel"
+              className="visual-asset__action"
               onClick={() => setShowPanel(false)}
             >
               Cancel
