@@ -9,7 +9,8 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select, Session
 
 from flowboard.db import get_session
-from flowboard.db.models import SocialBlock, SocialBlockPost, Node
+from flowboard.db.models import SocialBlock, SocialBlockPost, Node, SocialAccount
+from flowboard.services.platform_poster import get_platform_poster
 
 logger = logging.getLogger(__name__)
 
@@ -252,8 +253,106 @@ def schedule_social_block(
 
 
 # ============================================================================
-# STATUS
+# POST TO PLATFORMS
 # ============================================================================
+
+@router.post("/{block_id}/post")
+async def post_social_block(block_id: int, session: Session = None):
+    """Post a Social Block to all scheduled platforms."""
+    if session is None:
+        session = next(get_session())
+    
+    try:
+        block = session.exec(
+            select(SocialBlock).where(SocialBlock.id == block_id)
+        ).first()
+        
+        if not block:
+            raise HTTPException(status_code=404, detail="Social Block not found")
+        
+        # Get all pending posts for this block
+        posts = session.exec(
+            select(SocialBlockPost).where(
+                (SocialBlockPost.social_block_id == block_id) &
+                (SocialBlockPost.status == "pending")
+            )
+        ).all()
+        
+        if not posts:
+            raise HTTPException(status_code=400, detail="No pending posts found")
+        
+        # Get platform poster
+        poster = get_platform_poster()
+        results = []
+        
+        # Post to each platform
+        for post in posts:
+            try:
+                # Get social account for this platform
+                account = session.exec(
+                    select(SocialAccount).where(
+                        (SocialAccount.platform == post.platform) &
+                        (SocialAccount.status == "connected")
+                    )
+                ).first()
+                
+                if not account:
+                    post.status = "failed"
+                    post.error_message = f"No connected {post.platform} account"
+                    session.add(post)
+                    results.append({
+                        "platform": post.platform,
+                        "status": "failed",
+                        "error": f"No connected account",
+                    })
+                    continue
+                
+                # Post to platform
+                post_result = await poster.post_to_platform(
+                    platform=post.platform,
+                    content=post.content,
+                    token=account.access_token,
+                    page_id=account.account_id if post.platform == "facebook" else None,
+                    business_account_id=account.account_id if post.platform == "instagram" else None,
+                )
+                
+                # Update post status
+                if post_result["status"] == "success":
+                    post.status = "posted"
+                    post.posted_url = post_result.get("url")
+                    post.posted_at = datetime.utcnow()
+                else:
+                    post.status = "failed"
+                    post.error_message = post_result.get("error", "Unknown error")
+                
+                session.add(post)
+                results.append(post_result)
+                
+            except Exception as e:
+                logger.error(f"Error posting to {post.platform}: {str(e)}")
+                post.status = "failed"
+                post.error_message = str(e)
+                session.add(post)
+                results.append({
+                    "platform": post.platform,
+                    "status": "failed",
+                    "error": str(e),
+                })
+        
+        # Update block status
+        block.status = "posted"
+        session.add(block)
+        session.commit()
+        
+        return {
+            "id": block.id,
+            "status": "posted",
+            "results": results,
+        }
+    except Exception as e:
+        logger.error(f"Error posting social block: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{block_id}/status")
 def get_social_block_status(block_id: int, session: Session = None):
