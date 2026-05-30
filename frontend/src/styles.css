@@ -6407,19 +6407,20 @@ button:disabled {
 }
 
 .social-dialog__regen-btn {
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px dashed var(--border);
   background: var(--panel);
-  color: var(--fg);
-  font-size: 11px;
+  color: var(--muted);
+  font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   align-self: flex-start;
 }
 
 .social-dialog__regen-btn:hover {
   border-color: var(--accent);
+  color: var(--text);
 }
 
 .social-dialog__footer {
@@ -6431,37 +6432,26 @@ button:disabled {
 }
 
 .social-dialog__btn {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 400;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--fg);
+  transition: all 0.15s ease;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.social-dialog__btn:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-
-.social-dialog__btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .social-dialog__btn--cancel {
   background: var(--panel);
   border: 1px solid var(--border);
-  color: var(--fg);
+  color: var(--muted);
 }
 
-.social-dialog__btn--cancel:hover:not(:disabled) {
+.social-dialog__btn--cancel:hover {
   border-color: var(--accent);
+  color: var(--text);
 }
 
 .social-dialog__btn--save {
@@ -6471,10 +6461,147 @@ button:disabled {
 }
 
 .social-dialog__btn--save:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.15);
 }
 
 .social-dialog__btn--save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.social-dialog__shortcut {
+  font-size: 10px;
+  opacity: 0.6;
+  font-family: ui-monospace, monospace;
+}
+
+/* == Social Block Dialog - Generate UI ================================ */
+
+.social-dialog__platforms {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.social-dialog__platform-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.social-dialog__platform-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__platform-chip--active {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.social-dialog__platform-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.social-dialog__linked-media {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.social-dialog__linked-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.social-dialog__more-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-high);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.social-dialog__footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.social-dialog__btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+}
+
+.social-dialog__btn--cancel {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.social-dialog__btn--cancel:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__btn--ai {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.social-dialog__btn--ai:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.social-dialog__btn--save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.social-dialog__btn--save:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.social-dialog__btn--save:disabled,
+.social-dialog__btn--ai:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

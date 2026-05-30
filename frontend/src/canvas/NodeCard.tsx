@@ -1499,10 +1499,9 @@ function NodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
   }
 }
 
-function SocialBlockNodeBody({ data }: { rfId: string; data: FlowboardNodeData }) {
+function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
   const platforms: string[] = Array.isArray(data.platforms) ? (data.platforms as string[]) : [];
   const content = (data.content as string) || "";
-  const scheduledTime = (data.scheduled_time as string) || "";
 
   const platformIcons: Record<string, string> = {
     facebook: "f",
@@ -1516,6 +1515,12 @@ function SocialBlockNodeBody({ data }: { rfId: string; data: FlowboardNodeData }
     tiktok: "#000000",
     youtube: "#FF0000",
     instagram: "#E4405F",
+  };
+
+  const openDialog = () => {
+    import("../store/socialBlock").then(({ useSocialBlockStore }) => {
+      useSocialBlockStore.getState().openSocialBlockDialog(rfId);
+    });
   };
 
   return (
@@ -1534,7 +1539,7 @@ function SocialBlockNodeBody({ data }: { rfId: string; data: FlowboardNodeData }
             </div>
           ))
         ) : (
-          <span className="social-block-hint">Click ▶ to configure</span>
+          <span className="social-block-hint">Click Generate để thiết lập</span>
         )}
       </div>
 
@@ -1545,12 +1550,26 @@ function SocialBlockNodeBody({ data }: { rfId: string; data: FlowboardNodeData }
         </div>
       )}
 
-      {/* Schedule info */}
-      {scheduledTime && (
-        <div style={{ fontSize: 11, color: "var(--muted)", display: "flex", gap: 4, alignItems: "center" }}>
-          📅 {new Date(scheduledTime).toLocaleString()}
-        </div>
-      )}
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          type="button"
+          className="visual-asset__action"
+          onClick={(e) => { e.stopPropagation(); openDialog(); }}
+          title="Tạo bài đăng"
+          style={{ flex: 1 }}
+        >
+          ▶ Generate
+        </button>
+        <button
+          type="button"
+          className="visual-asset__action"
+          onClick={(e) => { e.stopPropagation(); openDialog(); }}
+          title="Cấu hình platform"
+        >
+          ⚙️
+        </button>
+      </div>
     </div>
   );
 }
@@ -1563,7 +1582,7 @@ function downloadExt(type: string): string {
 export function NodeCard(props: NodeProps<FlowNode>) {
   const data = props.data;
   const isNote = data.type === "note";
-  const isGenerable = ["image", "prompt", "video", "visual_asset", "character", "Storyboard", "social_block"].includes(data.type);
+  const isGenerable = ["image", "prompt", "video", "visual_asset", "character", "Storyboard"].includes(data.type);
   const isRunning = data.status === "running";
   const llmBusy = isLLMBusy(data);
   const downloadable = !!data.mediaId && data.type !== "prompt" && data.type !== "note";
@@ -1571,13 +1590,6 @@ export function NodeCard(props: NodeProps<FlowNode>) {
   function handleGenerate(e: React.MouseEvent) {
     e.stopPropagation();
     if (llmBusy) return; // guard: backend still composing for this node
-    if (data.type === "social_block") {
-      // Social block uses its own dialog
-      import("../store/socialBlock").then(({ useSocialBlockStore }) => {
-        useSocialBlockStore.getState().openSocialBlockDialog(props.id);
-      });
-      return;
-    }
     useGenerationStore.getState().openGenerationDialog(props.id, data.prompt ?? "");
   }
 
