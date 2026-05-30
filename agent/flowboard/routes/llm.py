@@ -260,14 +260,12 @@ async def generate_caption(body: GenerateRequest) -> dict:
         # Call the LLM provider
         result = await provider.run(
             body.prompt,
-            max_tokens=body.maxTokens,
             timeout=30.0
         )
         
         logger.info(
-            "llm: generated caption using %s (tokens: %d)",
-            provider_name,
-            body.maxTokens
+            "llm: generated caption using %s",
+            provider_name
         )
         
         return {
