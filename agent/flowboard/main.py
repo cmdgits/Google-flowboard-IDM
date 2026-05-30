@@ -71,9 +71,9 @@ def _auto_import_facebook_accounts() -> None:
     from sqlmodel import select
     from flowboard.db.models import SocialAccount
     
-    page_id = os.getenv("FB_PAGE_2_ID")
-    page_token = os.getenv("FB_PAGE_2_ACCESS_TOKEN")
-    page_name = os.getenv("FB_PAGE_2_NAME", "Facebook Page")
+    page_id = os.getenv("FB_PAGE__ID")
+    page_token = os.getenv("FB_PAGE__ACCESS_TOKEN")
+    page_name = "Facebook Page"
     
     if not page_id or not page_token:
         return
