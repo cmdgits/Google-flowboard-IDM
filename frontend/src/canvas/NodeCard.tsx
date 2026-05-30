@@ -1502,6 +1502,7 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
   const [showPanel, setShowPanel] = useState(false);
   const [platforms, setPlatforms] = useState<string[]>(data.platforms || []);
   const [content, setContent] = useState(data.content || "");
+  const [contentType, setContentType] = useState(data.content_type || "manual");
 
   const platformIcons: Record<string, string> = {
     facebook: "f",
@@ -1517,48 +1518,159 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
     instagram: "#E4405F",
   };
 
+  const handlePlatformToggle = (platform: string) => {
+    setPlatforms((prev) =>
+      prev.includes(platform)
+        ? prev.filter((p) => p !== platform)
+        : [...prev, platform]
+    );
+  };
+
+  const handleSave = () => {
+    useBoardStore.getState().updateNodeData(rfId, {
+      platforms,
+      content,
+      content_type: contentType,
+    });
+    setShowPanel(false);
+  };
+
   return (
-    <div className="social-block-body-content">
-      <div className="social-block-platforms">
-        {platforms.length > 0 ? (
-          platforms.map((platform) => (
-            <div
-              key={platform}
-              className="social-block-platform-badge"
-              style={{ backgroundColor: platformColors[platform] || "#ccc" }}
-              title={platform}
-            >
-              {platformIcons[platform] || "●"}
-            </div>
-          ))
-        ) : (
-          <span className="social-block-hint">No platforms selected</span>
-        )}
+    <div className="social-block-node-body">
+      {/* Header with platforms */}
+      <div className="social-block-header-compact">
+        <div className="social-block-platforms">
+          {platforms.length > 0 ? (
+            platforms.map((platform) => (
+              <div
+                key={platform}
+                className="social-block-platform-badge"
+                style={{ backgroundColor: platformColors[platform] || "#ccc" }}
+                title={platform}
+              >
+                {platformIcons[platform] || "●"}
+              </div>
+            ))
+          ) : (
+            <span className="social-block-hint">No platforms</span>
+          )}
+        </div>
       </div>
 
+      {/* Content preview */}
       {content && (
         <div className="social-block-content-preview">
-          {content.length > 50 ? content.substring(0, 50) + "..." : content}
+          {content.length > 60 ? content.substring(0, 60) + "..." : content}
         </div>
       )}
 
-      <div className="social-block-actions">
-        <button
-          type="button"
-          className="social-block-btn social-block-btn--configure"
-          onClick={() => setShowPanel(!showPanel)}
-          title="Configure block"
-        >
-          ⚙️
-        </button>
-        <button
-          type="button"
-          className="social-block-btn social-block-btn--schedule"
-          title="Schedule post"
-        >
-          📅
-        </button>
-      </div>
+      {/* Configuration Panel */}
+      {showPanel ? (
+        <div className="social-block-panel-expanded">
+          {/* Platforms Section */}
+          <div className="social-block-panel-section">
+            <label className="social-block-label">📱 Platforms</label>
+            <div className="social-block-platform-selector">
+              {["facebook", "tiktok", "youtube", "instagram"].map((platform) => (
+                <label key={platform} className="social-block-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={platforms.includes(platform)}
+                    onChange={() => handlePlatformToggle(platform)}
+                  />
+                  <span
+                    className="social-block-checkbox-icon"
+                    style={{ backgroundColor: platformColors[platform] }}
+                  >
+                    {platformIcons[platform]}
+                  </span>
+                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Content Type Section */}
+          <div className="social-block-panel-section">
+            <label className="social-block-label">📝 Content</label>
+            <select
+              value={contentType}
+              onChange={(e) => setContentType(e.target.value)}
+              className="social-block-select"
+            >
+              <option value="manual">Manual Input</option>
+              <option value="ai_generated">AI Generated</option>
+              <option value="from_connected">From Connected Block</option>
+            </select>
+          </div>
+
+          {/* Content Input */}
+          <div className="social-block-panel-section">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Nhập nội dung hoặc gen AI..."
+              className="social-block-textarea"
+              rows={4}
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="social-block-panel-actions">
+            <button
+              type="button"
+              className="social-block-btn social-block-btn--ai"
+              title="Generate with AI"
+            >
+              🤖 Gen AI
+            </button>
+            <button
+              type="button"
+              className="social-block-btn social-block-btn--from-block"
+              title="Get content from connected block"
+            >
+              📎 From Block
+            </button>
+          </div>
+
+          {/* Save/Cancel */}
+          <div className="social-block-panel-footer">
+            <button
+              type="button"
+              className="social-block-btn social-block-btn--save"
+              onClick={handleSave}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="social-block-btn social-block-btn--cancel"
+              onClick={() => setShowPanel(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Compact View */
+        <div className="social-block-actions-compact">
+          <button
+            type="button"
+            className="social-block-btn social-block-btn--configure"
+            onClick={() => setShowPanel(true)}
+            title="Configure"
+          >
+            ⚙️ Configure
+          </button>
+          <button
+            type="button"
+            className="social-block-btn social-block-btn--schedule"
+            title="Schedule post"
+          >
+            📅 Schedule
+          </button>
+        </div>
+      )}
     </div>
   );
 }
