@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSocialBlockStore } from "../store/socialBlock";
 import { useBoardStore, type FlowboardNodeData } from "../store/board";
-import { mediaUrl } from "../api/client";
 
 const PLATFORM_LIST = ["facebook", "tiktok", "youtube", "instagram"] as const;
 
@@ -19,15 +18,10 @@ const PLATFORM_COLORS: Record<string, string> = {
   instagram: "#E4405F",
 };
 
-/** Collect content from all blocks connected to the target social block. */
-function collectLinkedContent(rfId: string): {
-  texts: string[];
-  mediaIds: string[];
-  summary: string;
-} {
+/** Collect text context from all blocks connected to the target social block. */
+function collectLinkedContext(rfId: string): string {
   const { nodes, edges } = useBoardStore.getState();
   const texts: string[] = [];
-  const mediaIds: string[] = [];
 
   for (const edge of edges) {
     const connectedNodeId =
@@ -41,83 +35,57 @@ function collectLinkedContent(rfId: string): {
 
     const d = node.data as FlowboardNodeData;
 
-    // Collect text content
     if (d.type === "prompt" || d.type === "note") {
       const text = (d.prompt || d.title || "").trim();
       if (text) texts.push(text);
+    } else if (d.aiBrief) {
+      texts.push(d.aiBrief as string);
     } else if (d.title) {
       texts.push(d.title);
     }
-
-    // Collect media
-    if (d.mediaId) {
-      mediaIds.push(d.mediaId);
-    }
   }
 
-  const summary = texts.length > 0
-    ? texts.join(" | ")
-    : "No linked content found";
-
-  return { texts, mediaIds, summary };
+  return texts.join(". ");
 }
 
 export function SocialBlockDialog() {
   const openRfId = useSocialBlockStore((s) => s.openRfId);
   const close = useSocialBlockStore((s) => s.closeSocialBlockDialog);
   const nodes = useBoardStore((s) => s.nodes);
-  const edges = useBoardStore((s) => s.edges);
 
   const node = nodes.find((n) => n.id === openRfId);
   const data = node?.data as FlowboardNodeData | undefined;
 
   // Form state
+  const [prompt, setPrompt] = useState("");
   const [platforms, setPlatforms] = useState<string[]>([]);
-  const [content, setContent] = useState("");
-  const [contentSource, setContentSource] = useState<"manual" | "linked" | "ai">("manual");
-  const [aiGenerating, setAiGenerating] = useState(false);
-
-  // Linked content
-  const [linkedContent, setLinkedContent] = useState<ReturnType<typeof collectLinkedContent>>({
-    texts: [], mediaIds: [], summary: "",
-  });
+  const [scheduledTime, setScheduledTime] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [autoPromptUsed, setAutoPromptUsed] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Determine if there are linked blocks
-  const hasLinks = openRfId
-    ? edges.some((e) => e.target === openRfId || e.source === openRfId)
-    : false;
-
-  // Reset form state when dialog opens
+  // Reset form when dialog opens
   useEffect(() => {
     if (!openRfId || !data) return;
 
     setPlatforms(Array.isArray(data.platforms) ? (data.platforms as string[]) : []);
-    setContent((data.content as string) || "");
-    setContentSource((data.content_type as "manual" | "linked" | "ai") || "manual");
-    setAiGenerating(false);
-
-    const linked = collectLinkedContent(openRfId);
-    setLinkedContent(linked);
-
-    // If there are linked blocks and no existing content, auto-select "linked"
-    if (linked.texts.length > 0 && !data.content) {
-      setContentSource("linked");
-      setContent(linked.texts.join("\n\n"));
-    }
+    setPrompt((data.content as string) || "");
+    setScheduledTime((data.scheduled_time as string) || "");
+    setGenerating(false);
+    setAutoPromptUsed(false);
 
     setTimeout(() => textareaRef.current?.focus(), 60);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRfId]);
 
-  // ESC to close, Ctrl+Enter to save
+  // ESC to close, Ctrl+Enter to generate
   useEffect(() => {
     if (!openRfId) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); close(); }
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); handleSave(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); handleGenerate(); }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -131,65 +99,56 @@ export function SocialBlockDialog() {
     );
   };
 
-  const handleContentSourceChange = (source: "manual" | "linked" | "ai") => {
-    setContentSource(source);
-    if (source === "linked") {
-      const linked = collectLinkedContent(openRfId);
-      setLinkedContent(linked);
-      setContent(linked.texts.join("\n\n"));
-    } else if (source === "manual") {
-      // Keep current content so user can edit
-    }
-    // AI mode: user clicks Gen AI button
-  };
-
-  const handleGenAI = async () => {
-    setAiGenerating(true);
+  const handleGenerate = async () => {
+    setGenerating(true);
     try {
       // Build context from linked blocks
-      const linked = collectLinkedContent(openRfId);
-      const context = linked.texts.length > 0
-        ? `Based on this content: "${linked.texts.join(". ")}". `
+      const linkedContext = collectLinkedContext(openRfId);
+      const contextStr = linkedContext
+        ? `Based on this content: "${linkedContext}". `
         : "";
       const platformStr = platforms.length > 0
         ? platforms.join(", ")
         : "social media";
 
-      const prompt = `${context}Generate a creative and engaging social media caption for posting to ${platformStr}. Keep it concise, use relevant emojis, and include a call to action.`;
+      const aiPrompt = prompt.trim()
+        ? `${contextStr}Using this direction: "${prompt.trim()}". Generate a creative and engaging social media caption for posting to ${platformStr}. Keep it concise, use relevant emojis, and include a call to action.`
+        : `${contextStr}Generate a creative and engaging social media caption for posting to ${platformStr}. Keep it concise, use relevant emojis, and include a call to action.`;
 
       const response = await fetch("/api/llm/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, maxTokens: 300 }),
+        body: JSON.stringify({ prompt: aiPrompt, maxTokens: 300 }),
       });
 
       if (!response.ok) throw new Error("AI generation failed");
 
       const result = await response.json();
-      const generatedContent = result.text || result.content;
+      const content = result.text || result.content;
 
-      if (generatedContent) {
-        setContent(generatedContent);
-        setContentSource("ai");
+      if (content) {
+        setPrompt(content);
+        setAutoPromptUsed(true);
       }
     } catch (error) {
       console.error("AI generation error:", error);
-      // Use a toast-like inline error instead of alert
     } finally {
-      setAiGenerating(false);
+      setGenerating(false);
     }
   };
 
   const handleSave = () => {
     useBoardStore.getState().updateNodeData(openRfId, {
       platforms,
-      content,
-      content_type: contentSource,
+      content: prompt,
+      content_type: autoPromptUsed ? "ai_generated" : "manual",
+      scheduled_time: scheduledTime || undefined,
     });
     close();
   };
 
   // Count linked blocks
+  const edges = useBoardStore.getState().edges;
   const linkedBlockCount = edges.filter(
     (e) => e.target === openRfId || e.source === openRfId
   ).length;
@@ -208,13 +167,12 @@ export function SocialBlockDialog() {
         aria-labelledby="social-dialog-title"
         aria-modal="true"
         ref={dialogRef}
-        style={{ maxWidth: 560 }}
       >
         {/* ── Header ── */}
         <div className="gen-dialog__header">
           <div>
             <h2 id="social-dialog-title" className="gen-dialog__title">
-              📱 Configure Social Block
+              Social Post
             </h2>
             <span className="gen-dialog__subtitle">
               Node #{data.shortId}
@@ -234,7 +192,40 @@ export function SocialBlockDialog() {
           </button>
         </div>
 
-        {/* ── Platform Selector ── */}
+        {/* ── Prompt (same position as GenerationDialog) ── */}
+        <div className="gen-dialog__field">
+          <div className="gen-dialog__label-row">
+            <label className="gen-dialog__label" htmlFor="social-prompt">
+              Prompt
+              {autoPromptUsed && (
+                <span className="gen-dialog__auto-badge" title="Generated by AI">
+                  ✨ auto
+                </span>
+              )}
+            </label>
+            <span className="gen-dialog__char-count">{prompt.length}/2000</span>
+          </div>
+          <textarea
+            id="social-prompt"
+            ref={textareaRef}
+            className="gen-dialog__textarea"
+            rows={5}
+            maxLength={2000}
+            value={prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              if (autoPromptUsed) setAutoPromptUsed(false);
+            }}
+            placeholder={
+              linkedBlockCount > 0
+                ? "Bỏ trống để tự generate từ linked blocks ✨"
+                : "Nhập nội dung bài đăng hoặc bấm Generate để AI tạo ✨"
+            }
+            disabled={generating}
+          />
+        </div>
+
+        {/* ── Platforms (replaces Aspect Ratio section) ── */}
         <div className="gen-dialog__field">
           <label className="gen-dialog__label">Platforms</label>
           <div className="social-dialog__platforms">
@@ -261,131 +252,52 @@ export function SocialBlockDialog() {
           </div>
         </div>
 
-        {/* ── Content Source ── */}
+        {/* ── Schedule (replaces Variants section) ── */}
         <div className="gen-dialog__field">
-          <label className="gen-dialog__label">Content source</label>
-          <div className="social-dialog__source-tabs">
-            <button
-              type="button"
-              className={`social-dialog__tab${contentSource === "manual" ? " social-dialog__tab--active" : ""}`}
-              onClick={() => handleContentSourceChange("manual")}
-            >
-              ✏️ Manual
-            </button>
-            <button
-              type="button"
-              className={`social-dialog__tab${contentSource === "linked" ? " social-dialog__tab--active" : ""}`}
-              onClick={() => handleContentSourceChange("linked")}
-              disabled={!hasLinks}
-              title={!hasLinks ? "Connect blocks to this node first" : "Use content from linked blocks"}
-            >
-              📎 From Linked Blocks
-              {linkedBlockCount > 0 && (
-                <span className="social-dialog__tab-badge">{linkedBlockCount}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              className={`social-dialog__tab${contentSource === "ai" ? " social-dialog__tab--active" : ""}`}
-              onClick={() => { handleContentSourceChange("ai"); handleGenAI(); }}
-              disabled={aiGenerating}
-            >
-              {aiGenerating ? "⏳ Generating…" : "🤖 Gen AI"}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Linked Content Preview (when source=linked) ── */}
-        {contentSource === "linked" && linkedContent.mediaIds.length > 0 && (
-          <div className="gen-dialog__field">
-            <label className="gen-dialog__label">Linked media</label>
-            <div className="social-dialog__linked-media">
-              {linkedContent.mediaIds.slice(0, 4).map((mid) => (
-                <img
-                  key={mid}
-                  src={mediaUrl(mid)}
-                  alt="Linked media"
-                  className="social-dialog__linked-thumb"
-                />
-              ))}
-              {linkedContent.mediaIds.length > 4 && (
-                <span className="social-dialog__more-badge">
-                  +{linkedContent.mediaIds.length - 4}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Content Editor ── */}
-        <div className="gen-dialog__field">
-          <div className="gen-dialog__label-row">
-            <label className="gen-dialog__label" htmlFor="social-content">
-              Post Content
-              {contentSource === "ai" && (
-                <span className="gen-dialog__auto-badge" title="Generated by AI">
-                  ✨ AI
-                </span>
-              )}
-              {contentSource === "linked" && (
-                <span className="gen-dialog__auto-badge" title="From linked blocks">
-                  📎 linked
-                </span>
-              )}
-            </label>
-            <span className="gen-dialog__char-count">{content.length}/2000</span>
-          </div>
-          <textarea
-            id="social-content"
-            ref={textareaRef}
+          <label className="gen-dialog__label">Schedule</label>
+          <input
+            type="datetime-local"
             className="gen-dialog__textarea"
-            rows={6}
-            maxLength={2000}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value);
-              // If user edits, switch to manual
-              if (contentSource !== "manual") setContentSource("manual");
+            style={{
+              padding: "8px 12px",
+              fontSize: 13,
+              height: "auto",
+              minHeight: "unset",
             }}
-            placeholder={
-              contentSource === "linked"
-                ? "Content from linked blocks will appear here…"
-                : contentSource === "ai"
-                ? "AI-generated content will appear here…"
-                : "Write your social media post content…"
-            }
-            disabled={aiGenerating}
+            value={scheduledTime}
+            onChange={(e) => setScheduledTime(e.target.value)}
           />
+          {scheduledTime && (
+            <button
+              type="button"
+              className="social-dialog__regen-btn"
+              onClick={() => setScheduledTime("")}
+              style={{ marginTop: 4 }}
+            >
+              ✕ Clear schedule
+            </button>
+          )}
         </div>
 
-        {/* ── AI Regenerate (when already has AI content) ── */}
-        {contentSource === "ai" && content && !aiGenerating && (
-          <button
-            type="button"
-            className="social-dialog__regen-btn"
-            onClick={handleGenAI}
-          >
-            🔄 Regenerate AI content
-          </button>
-        )}
-
-        {/* ── Footer ── */}
+        {/* ── Footer with Generate + Save (same layout as GenerationDialog) ── */}
         <div className="social-dialog__footer">
+          <span className="gen-dialog__subtitle" style={{ flex: 1, alignSelf: "center" }}>
+            {data.title} · {nodes.length} nodes
+          </span>
           <button
             type="button"
             className="social-dialog__btn social-dialog__btn--cancel"
-            onClick={close}
+            onClick={handleSave}
           >
-            Cancel
+            💾 Save
           </button>
           <button
             type="button"
             className="social-dialog__btn social-dialog__btn--save"
-            onClick={handleSave}
-            disabled={aiGenerating}
+            onClick={handleGenerate}
+            disabled={generating}
           >
-            💾 Save
-            <span className="social-dialog__shortcut">⌘↵</span>
+            {generating ? "⏳ Generating…" : "Generate ⌘↵"}
           </button>
         </div>
       </div>
