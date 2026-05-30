@@ -1757,25 +1757,6 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
             </button>
           </div>
         </div>
-      ) : (
-        /* Compact View */
-        <div className="social-block-actions-compact">
-          <button
-            type="button"
-            className="social-block-btn social-block-btn--configure"
-            onClick={() => setShowPanel(true)}
-            title="Configure"
-          >
-            ⚙️ Configure
-          </button>
-          <button
-            type="button"
-            className="social-block-btn social-block-btn--schedule"
-            title="Schedule post"
-          >
-            📅 Schedule
-          </button>
-        </div>
       )}
     </div>
   );
