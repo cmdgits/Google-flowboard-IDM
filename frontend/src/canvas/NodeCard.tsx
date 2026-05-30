@@ -1535,6 +1535,86 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
     setShowPanel(false);
   };
 
+  const handleGenAI = async () => {
+    try {
+      // Usar existing AI generation system do Flowboard
+      const prompt = `Generate a social media caption for posting to ${platforms.join(", ")}. Keep it engaging and relevant.`;
+      
+      // Chamar API de AI generation
+      const response = await fetch("/api/llm/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          maxTokens: 200,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to generate content");
+      
+      const data = await response.json();
+      const generatedContent = data.text || data.content;
+      
+      if (generatedContent) {
+        setContent(generatedContent);
+        setContentType("ai_generated");
+      }
+    } catch (error) {
+      console.error("AI generation error:", error);
+      alert("Failed to generate content with AI");
+    }
+  };
+
+  const handleFromBlock = () => {
+    try {
+      // Buscar edges conectadas ao Social Block
+      const board = useBoardStore.getState();
+      const edges = board.edges.filter(
+        (edge) => edge.target === rfId || edge.source === rfId
+      );
+
+      if (edges.length === 0) {
+        alert("No connected blocks found. Connect an Image, Video, or Text block first.");
+        return;
+      }
+
+      // Buscar content dos blocos conectados
+      let extractedContent = "";
+      
+      for (const edge of edges) {
+        const connectedNodeId = edge.source === rfId ? edge.target : edge.source;
+        const connectedNode = board.nodes.find((n) => n.id === connectedNodeId);
+        
+        if (connectedNode) {
+          const nodeData = connectedNode.data as FlowboardNodeData;
+          
+          // Extrair content baseado no tipo de nó
+          if (nodeData.type === "prompt" || nodeData.type === "note") {
+            extractedContent += nodeData.title || "";
+          } else if (nodeData.type === "visual_asset") {
+            extractedContent += nodeData.title || "Visual asset";
+          } else if (nodeData.type === "image") {
+            extractedContent += nodeData.title || "Image";
+          } else if (nodeData.type === "video") {
+            extractedContent += nodeData.title || "Video";
+          }
+          
+          if (extractedContent) extractedContent += "\n";
+        }
+      }
+
+      if (extractedContent) {
+        setContent(extractedContent.trim());
+        setContentType("from_connected");
+      } else {
+        alert("Could not extract content from connected blocks");
+      }
+    } catch (error) {
+      console.error("Content linking error:", error);
+      alert("Failed to get content from connected blocks");
+    }
+  };
+
   return (
     <div className="social-block-node-body">
       {/* Header with platforms */}
@@ -1621,6 +1701,7 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
               type="button"
               className="social-block-btn social-block-btn--ai"
               title="Generate with AI"
+              onClick={handleGenAI}
             >
               🤖 Gen AI
             </button>
@@ -1628,6 +1709,7 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
               type="button"
               className="social-block-btn social-block-btn--from-block"
               title="Get content from connected block"
+              onClick={handleFromBlock}
             >
               📎 From Block
             </button>
