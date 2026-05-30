@@ -6,6 +6,7 @@ import { mediaUrl, patchEdge, patchNode, uploadImage, uploadImageFromUrl } from 
 import { requestAutoBrief } from "../api/autoBrief";
 import { useReferencesStore } from "../store/references";
 import { SchedulePostModal } from "../components/SchedulePostModal";
+import { SocialBlockNode } from "./SocialBlockNode";
 import {
   normaliseStoryboardGrid,
   resolveStoryboardLayout,
@@ -1493,6 +1494,8 @@ function NodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
       return <VisualAssetBody rfId={rfId} data={data} />;
     case "Storyboard":
       return <StoryboardBody rfId={rfId} data={data} />;
+    case "social_block":
+      return <SocialBlockNode {...(props as NodeProps<FlowNode>)} />;
   }
 }
 

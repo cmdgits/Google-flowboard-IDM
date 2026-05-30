@@ -16,6 +16,7 @@ const CHIPS: Chip[] = [
   { type: "visual_asset", icon: "◇", label: "Visual asset" },
   { type: "prompt", icon: "✦", label: "Prompt" },
   { type: "note", icon: "✎", label: "Note" },
+  { type: "social_block", icon: "📱", label: "Social Block" },
 ];
 
 export function AddNodePalette() {
