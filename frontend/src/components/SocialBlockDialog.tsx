@@ -79,6 +79,7 @@ export function SocialBlockDialog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRfId]);
 
+  // Keyboard shortcuts
   useEffect(() => {
     if (!openRfId) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -88,6 +89,20 @@ export function SocialBlockDialog() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [openRfId, close]);
+
+  // Auto-save caption when it changes (debounce 1 second)
+  useEffect(() => {
+    if (!openRfId || platforms.length === 0) return;
+
+    const timeoutId = setTimeout(() => {
+      useBoardStore.getState().updateNodeData(openRfId, {
+        platforms,
+        content: caption,
+      });
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [caption, platforms, openRfId]);
 
   if (!openRfId || !data) return null;
 
@@ -130,6 +145,12 @@ export function SocialBlockDialog() {
 
       if (generatedContent) {
         setCaption(generatedContent);
+        
+        // ✅ Auto-save caption sau Generate AI
+        useBoardStore.getState().updateNodeData(openRfId, {
+          platforms,
+          content: generatedContent,
+        });
       } else {
         throw new Error("Không nhận được caption từ AI");
       }
