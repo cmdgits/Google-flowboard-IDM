@@ -4,6 +4,19 @@ echo =======================================
 echo Flowboard Startup Script
 echo =======================================
 echo.
+echo Dang kill cac process cu... (Killing old processes...)
+echo.
+
+REM Kill any existing python.exe processes
+taskkill /F /IM python.exe >nul 2>&1
+
+REM Kill any existing node.exe processes
+taskkill /F /IM node.exe >nul 2>&1
+
+REM Wait a moment for processes to fully terminate
+timeout /t 2 /nobreak >nul
+
+echo.
 echo Chon che do chay (Select run mode):
 echo [1] Chay an (Hide CMD windows)
 echo [2] Mo giao dien (Show CMD windows)
@@ -21,10 +34,10 @@ echo WshShell.Run "cmd /c cd /d """ ^& WScript.Arguments(1) ^& """ && npm run de
 cscript //nologo run_hidden.vbs "%~dp0agent" "%~dp0frontend"
 del run_hidden.vbs
 
-echo Vui long doi 5 giay de he thong khoi dong...
+echo Vui long doi 5 giay de he thong khoi dong...(Waiting 5 seconds for startup...)
 timeout /t 5 /nobreak >nul
 start http://127.0.0.1:5173
-echo Flowboard dang chay ngam!
+echo Flowboard dang chay ngam! (Flowboard running in background!)
 echo Luu y: De tat, ban can vao Task Manager de tat 'python.exe' va 'node.exe'
 pause
 exit
@@ -38,9 +51,9 @@ echo Dang chay Frontend...
 cd /d "%~dp0frontend"
 start "Flowboard Frontend" cmd /k "npm run dev"
 
-echo Vui long doi 5 giay de he thong khoi dong...
+echo Vui long doi 5 giay de he thong khoi dong...(Waiting 5 seconds for startup...)
 timeout /t 5 /nobreak >nul
 start http://127.0.0.1:5173
-echo Flowboard da duoc khoi dong!
+echo Flowboard da duoc khoi dong! (Flowboard started!)
 pause
 exit
