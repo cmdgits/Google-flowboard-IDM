@@ -213,3 +213,57 @@ class ScheduledPost(SQLModel, table=True):
     error_message: Optional[str] = None  # Error details if failed
     created_at: datetime = Field(default_factory=_utcnow)
     posted_at: Optional[datetime] = None
+
+
+class SocialBlock(SQLModel, table=True):
+    """Social Media Block for scheduling posts across platforms.
+    
+    Allows users to configure social media posting with content,
+    platform selection, and scheduling.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    node_id: int = Field(foreign_key="node.id", index=True)
+    board_id: int = Field(foreign_key="board.id", index=True)
+    
+    # Platforms to post to (JSON list: ["facebook", "tiktok", "youtube", "instagram"])
+    platforms: str = Field(default="[]", sa_column=Column(JSON))
+    
+    # Content configuration
+    content_type: str = "manual"  # manual | ai_generated | from_connected
+    content: str = ""  # Post content/caption
+    ai_prompt: Optional[str] = None  # Prompt if AI generated
+    
+    # Scheduling
+    scheduled_time: Optional[datetime] = None
+    is_recurring: bool = False
+    recurrence_pattern: Optional[str] = None  # daily | weekly | monthly
+    
+    # Status tracking
+    status: str = "draft"  # draft | scheduled | posted | failed
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class SocialBlockPost(SQLModel, table=True):
+    """Tracks individual posts from a Social Block.
+    
+    Records when a Social Block posts to each platform.
+    """
+    id: Optional[int] = Field(default=None, primary_key=True)
+    social_block_id: int = Field(foreign_key="socialblock.id", index=True)
+    platform: str  # facebook | tiktok | youtube | instagram
+    
+    # Post details
+    content: str  # Actual content posted
+    posted_url: Optional[str] = None  # URL to posted content
+    
+    # Status
+    status: str = "pending"  # pending | posted | failed
+    error_message: Optional[str] = None
+    
+    # Timestamps
+    scheduled_time: datetime
+    posted_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=_utcnow)
