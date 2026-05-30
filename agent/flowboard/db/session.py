@@ -50,6 +50,14 @@ def init_db() -> None:
                 )
                 conn.commit()
 
+        if insp.has_table("socialblock"):
+            social_cols = {c["name"] for c in insp.get_columns("socialblock")}
+            if "facebook_post_id" not in social_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE socialblock ADD COLUMN facebook_post_id TEXT"
+                )
+                conn.commit()
+
     SQLModel.metadata.create_all(engine)
 
 

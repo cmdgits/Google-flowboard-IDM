@@ -11,6 +11,7 @@ interface SocialBlockScheduleModalProps {
 
 interface ScheduleData {
   platforms: string[];
+  content: string;
   scheduled_time: string;
   is_recurring: boolean;
   recurrence_pattern?: string;
@@ -24,42 +25,16 @@ export function SocialBlockScheduleModal({
   onClose,
   onSchedule,
 }: SocialBlockScheduleModalProps) {
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(platforms);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("12:00");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrencePattern, setRecurrencePattern] = useState("daily");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const platformIcons: Record<string, string> = {
-    facebook: "f",
-    tiktok: "♪",
-    youtube: "▶",
-    instagram: "📷",
-  };
-
-  const platformColors: Record<string, string> = {
-    facebook: "#1877F2",
-    tiktok: "#000000",
-    youtube: "#FF0000",
-    instagram: "#E4405F",
-  };
-
-  const handlePlatformToggle = (platform: string) => {
-    setSelectedPlatforms((prev) =>
-      prev.includes(platform)
-        ? prev.filter((p) => p !== platform)
-        : [...prev, platform]
-    );
-  };
 
   const handleSchedule = async () => {
     setError(null);
 
-    // Validation
-    if (selectedPlatforms.length === 0) {
-      setError("Please select at least one platform");
+    if (platforms.length === 0) {
+      setError("Please select at least one platform in the main dialog first");
       return;
     }
 
@@ -79,14 +54,14 @@ export function SocialBlockScheduleModal({
       setLoading(true);
 
       const scheduleData: ScheduleData = {
-        platforms: selectedPlatforms,
+        platforms: platforms,
+        content: content,
         scheduled_time: scheduledDateTime.toISOString(),
-        is_recurring: isRecurring,
-        recurrence_pattern: isRecurring ? recurrencePattern : undefined,
+        is_recurring: false,
       };
 
       // Call API
-      const response = await fetch(`/api/social-blocks/${blockId}/schedule`, {
+      const response = await fetch(`/api/social-blocks/node/${blockId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(scheduleData),
@@ -108,111 +83,66 @@ export function SocialBlockScheduleModal({
 
   if (!open) return null;
 
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split("T")[0];
+
   return (
     <div className="schedule-post-modal-backdrop" onClick={onClose}>
       <div
         className="schedule-post-modal"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Schedule post"
       >
-        <div className="schedule-post-modal-header">
-          <h2>Schedule Post</h2>
+        <div className="schedule-post-modal__header">
+          <h2 className="schedule-post-modal__title">Schedule Post</h2>
           <button
             type="button"
-            className="schedule-post-modal-close"
+            className="schedule-post-modal__close"
             onClick={onClose}
+            aria-label="Close"
           >
             ✕
           </button>
         </div>
 
-        <div className="schedule-post-modal-content">
-          {/* Content Preview */}
-          <div className="schedule-post-section">
-            <label className="schedule-post-label">Content Preview</label>
-            <div className="schedule-post-preview">
-              {content.substring(0, 100)}
-              {content.length > 100 ? "..." : ""}
-            </div>
-          </div>
-
-          {/* Platform Selection */}
-          <div className="schedule-post-section">
-            <label className="schedule-post-label">Select Platforms</label>
-            <div className="schedule-post-platforms">
-              {["facebook", "tiktok", "youtube", "instagram"].map((platform) => (
-                <label key={platform} className="schedule-post-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={selectedPlatforms.includes(platform)}
-                    onChange={() => handlePlatformToggle(platform)}
-                  />
-                  <span
-                    className="schedule-post-checkbox-icon"
-                    style={{ backgroundColor: platformColors[platform] }}
-                  >
-                    {platformIcons[platform]}
-                  </span>
-                  {platform.charAt(0).toUpperCase() + platform.slice(1)}
-                </label>
-              ))}
-            </div>
-          </div>
-
+        <div className="schedule-post-modal__content">
           {/* Date & Time */}
-          <div className="schedule-post-section">
-            <label className="schedule-post-label">Schedule Date & Time</label>
-            <div className="schedule-post-datetime">
+          <div className="schedule-post-modal__row">
+            <div className="schedule-post-modal__field">
+              <label className="schedule-post-modal__label">Date</label>
               <input
                 type="date"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                className="schedule-post-input"
+                className="schedule-post-modal__input"
+                min={today}
               />
+            </div>
+            <div className="schedule-post-modal__field">
+              <label className="schedule-post-modal__label">Time</label>
               <input
                 type="time"
                 value={scheduledTime}
                 onChange={(e) => setScheduledTime(e.target.value)}
-                className="schedule-post-input"
+                className="schedule-post-modal__input"
               />
             </div>
           </div>
 
-          {/* Recurring */}
-          <div className="schedule-post-section">
-            <label className="schedule-post-checkbox">
-              <input
-                type="checkbox"
-                checked={isRecurring}
-                onChange={(e) => setIsRecurring(e.target.checked)}
-              />
-              Recurring Post
-            </label>
-
-            {isRecurring && (
-              <select
-                value={recurrencePattern}
-                onChange={(e) => setRecurrencePattern(e.target.value)}
-                className="schedule-post-select"
-              >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            )}
-          </div>
-
           {/* Error Message */}
           {error && (
-            <div className="schedule-post-error">
+            <div className="schedule-post-modal__error">
               {error}
             </div>
           )}
         </div>
 
-        <div className="schedule-post-modal-footer">
+        <div className="schedule-post-modal__footer">
           <button
             type="button"
-            className="schedule-post-btn schedule-post-btn--cancel"
+            className="schedule-post-modal__btn schedule-post-modal__btn--cancel"
             onClick={onClose}
             disabled={loading}
           >
@@ -220,7 +150,7 @@ export function SocialBlockScheduleModal({
           </button>
           <button
             type="button"
-            className="schedule-post-btn schedule-post-btn--schedule"
+            className="schedule-post-modal__btn schedule-post-modal__btn--schedule"
             onClick={handleSchedule}
             disabled={loading}
           >

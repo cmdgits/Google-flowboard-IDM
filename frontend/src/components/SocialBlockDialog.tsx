@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSocialBlockStore } from "../store/socialBlock";
 import { useBoardStore, type FlowboardNodeData } from "../store/board";
 import { mediaUrl } from "../api/client";
-import { SchedulePostModal } from "./SchedulePostModal";
+import { SocialBlockScheduleModal } from "./SocialBlockScheduleModal";
 
 const PLATFORM_LIST = ["facebook", "tiktok", "youtube", "instagram"] as const;
 
@@ -37,7 +37,17 @@ function collectLinkedContent(rfId: string) {
     } else if (d.title) {
       texts.push(d.title);
     }
-    if (d.mediaId) mediaIds.push(d.mediaId);
+    
+    // Support both d.mediaIds (all variants) and singular d.mediaId
+    if (Array.isArray(d.mediaIds)) {
+      for (const mid of d.mediaIds) {
+        if (mid && !mediaIds.includes(mid)) {
+          mediaIds.push(mid);
+        }
+      }
+    } else if (d.mediaId && !mediaIds.includes(d.mediaId)) {
+      mediaIds.push(d.mediaId);
+    }
   }
   return { texts, mediaIds };
 }
@@ -54,6 +64,7 @@ export function SocialBlockDialog() {
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [linkedContent, setLinkedContent] = useState<{ texts: string[]; mediaIds: string[] }>({ texts: [], mediaIds: [] });
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
@@ -79,16 +90,26 @@ export function SocialBlockDialog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openRfId]);
 
+  const handleClose = () => {
+    if (openRfId) {
+      useBoardStore.getState().updateNodeData(openRfId, { platforms, content: caption });
+    }
+    close();
+  };
+
+  const handleCloseRef = useRef(handleClose);
+  handleCloseRef.current = handleClose;
+
   // Keyboard shortcuts
   useEffect(() => {
     if (!openRfId) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); close(); }
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); handleSave(); }
+      if (e.key === "Escape") { e.preventDefault(); handleCloseRef.current(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); handleCloseRef.current(); }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [openRfId, close]);
+  }, [openRfId]);
 
   // Auto-save caption when it changes (debounce 1 second)
   useEffect(() => {
@@ -177,10 +198,56 @@ export function SocialBlockDialog() {
     }
   };
 
-  const handleSave = () => {
-    if (platforms.length === 0) { alert("Vui lòng chọn ít nhất 1 platform"); return; }
-    useBoardStore.getState().updateNodeData(openRfId, { platforms, content: caption });
-    close();
+
+
+  const handleQuickPost = async () => {
+    if (platforms.length === 0) {
+      alert("Vui lòng chọn ít nhất 1 platform");
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      const response = await fetch(`/api/social-blocks/node/${openRfId}/post-now`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platforms, content: caption }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      const resultsText = result.results
+        .map((r: any) => {
+          if (r.status === "success") {
+            return `✅ ${r.platform.toUpperCase()}: Đăng thành công! (Post ID: ${r.post_id})`;
+          } else {
+            return `❌ ${r.platform.toUpperCase()}: Thất bại (${r.error || "Không rõ nguyên nhân"})`;
+          }
+        })
+        .join("\n");
+
+      // Save content and platforms state locally
+      useBoardStore.getState().updateNodeData(openRfId, {
+        platforms,
+        content: caption,
+        status: result.status,
+      });
+
+      alert(`Kết quả đăng bài:\n\n${resultsText}`);
+      if (result.status === "posted") {
+        close();
+      }
+    } catch (err: any) {
+      console.error("Auto post error:", err);
+      alert(`Lỗi đăng bài tự động: ${err.message || err}`);
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const linkedBlockCount = edges.filter((e) => e.target === openRfId || e.source === openRfId).length;
@@ -217,10 +284,11 @@ export function SocialBlockDialog() {
 
         {linkedContent.mediaIds.length > 0 && (
           <div className="gen-dialog__field">
-            <label className="gen-dialog__label">Ảnh/Video liên kết</label>
+            <label className="gen-dialog__label">Ảnh/Video liên kết ({linkedContent.mediaIds.length})</label>
             <div className="social-dialog__linked-media">
-              {linkedContent.mediaIds.slice(0, 4).map((mid) => <img key={mid} src={mediaUrl(mid)} alt="Linked media" className="social-dialog__linked-thumb" />)}
-              {linkedContent.mediaIds.length > 4 && <span className="social-dialog__more-badge">+{linkedContent.mediaIds.length - 4}</span>}
+              {linkedContent.mediaIds.map((mid) => (
+                <img key={mid} src={mediaUrl(mid)} alt="Linked media" className="social-dialog__linked-thumb" />
+              ))}
             </div>
           </div>
         )}
@@ -237,15 +305,16 @@ export function SocialBlockDialog() {
           <button
             type="button"
             className="social-dialog__btn social-dialog__btn--cancel"
-            onClick={close}
+            onClick={handleClose}
+            disabled={publishing}
           >
-            Hủy
+            Đóng
           </button>
           <button
             type="button"
             className="social-dialog__btn social-dialog__btn--ai"
             onClick={handleGenAI}
-            disabled={aiGenerating}
+            disabled={aiGenerating || publishing}
           >
             {aiGenerating ? "⏳ Đang tạo…" : "🤖 Generate AI"}
           </button>
@@ -253,26 +322,28 @@ export function SocialBlockDialog() {
             type="button"
             className="social-dialog__btn social-dialog__btn--schedule"
             onClick={() => setShowScheduleModal(true)}
-            disabled={platforms.length === 0}
+            disabled={platforms.length === 0 || publishing}
             title="Lên lịch đăng bài"
           >
             📅 Schedule
           </button>
           <button
             type="button"
-            className="social-dialog__btn social-dialog__btn--save"
-            onClick={handleSave}
-            disabled={aiGenerating}
+            className="social-dialog__btn social-dialog__btn--post"
+            onClick={handleQuickPost}
+            disabled={platforms.length === 0 || aiGenerating || publishing}
+            title="Đăng nhanh tự động qua API (Yêu cầu cấu hình credentials trong .env)"
           >
-            💾 Lưu
-            <span className="social-dialog__shortcut">⌘↵</span>
+            {publishing ? "⏳ Đang đăng…" : "🚀 Đăng nhanh (Auto)"}
           </button>
         </div>
 
         {/* Schedule Modal */}
-        <SchedulePostModal
-          assetId={parseInt(openRfId || "0")}
+        <SocialBlockScheduleModal
           open={showScheduleModal}
+          blockId={parseInt(openRfId || "0")}
+          platforms={platforms}
+          content={caption}
           onClose={() => setShowScheduleModal(false)}
           onSchedule={(data) => {
             useBoardStore.getState().updateNodeData(openRfId, {

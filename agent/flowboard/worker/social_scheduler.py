@@ -39,6 +39,85 @@ async def process_scheduled_posts() -> None:
         if pending_posts:
             session.commit()
 
+        # 2. Find and process all pending SocialBlockPosts that are due
+        from flowboard.db.models import SocialBlockPost, SocialBlock
+        from flowboard.services.platform_poster import get_platform_poster
+        from flowboard.routes.social_block import get_connected_asset_paths
+        
+        stmt2 = select(SocialBlockPost).where(
+            (SocialBlockPost.status == "pending") &
+            (SocialBlockPost.scheduled_time <= now)
+        )
+        pending_block_posts = session.exec(stmt2).all()
+        
+        if pending_block_posts:
+            poster = get_platform_poster()
+            for post in pending_block_posts:
+                try:
+                    # Get associated SocialBlock
+                    block = session.get(SocialBlock, post.social_block_id)
+                    if not block:
+                        raise ValueError(f"Social Block {post.social_block_id} not found")
+                        
+                    token = None
+                    page_id = None
+                    business_account_id = None
+                    
+                    # Get page access token from env or DB
+                    import os
+                    if post.platform == "facebook" and os.getenv("FB_PAGE__ACCESS_TOKEN"):
+                        page_id = os.getenv("FB_PAGE__ID")
+                        token = os.getenv("FB_PAGE__ACCESS_TOKEN")
+                        
+                    if not token:
+                        account = session.exec(
+                            select(SocialAccount).where(
+                                SocialAccount.platform == post.platform
+                            )
+                        ).first()
+                        if account:
+                            token = account.access_token
+                            page_id = account.account_id if post.platform == "facebook" else None
+                            business_account_id = account.account_id if post.platform == "instagram" else None
+                            
+                    if not token:
+                        raise ValueError(f"No credentials configured for {post.platform}")
+                        
+                    # Get connected media files
+                    media_items = get_connected_asset_paths(block.node_id, session)
+                    image_path = media_items[0]["path"] if media_items else None
+                    
+                    post_result = await poster.post_to_platform(
+                        platform=post.platform,
+                        content=post.content,
+                        token=token,
+                        page_id=page_id,
+                        business_account_id=business_account_id,
+                        image_path=image_path,
+                        media_items=media_items,
+                    )
+                    
+                    if post_result.get("status") == "success":
+                        post.status = "posted"
+                        post.posted_url = post_result.get("url")
+                        post.posted_at = datetime.now(timezone.utc)
+                        
+                        if post.platform == "facebook":
+                            block.facebook_post_id = post_result.get("post_id")
+                            session.add(block)
+                    else:
+                        post.status = "failed"
+                        post.error_message = post_result.get("error", "Unknown error")
+                        
+                    session.add(post)
+                except Exception as e:
+                    logger.error(f"Failed to upload social block post {post.id}: {str(e)}")
+                    post.status = "failed"
+                    post.error_message = str(e)[:500]
+                    session.add(post)
+                    
+            session.commit()
+
 
 async def _upload_post_to_platform(
     session, post: ScheduledPost

@@ -3,8 +3,9 @@
 Handles posting content to Facebook, TikTok, YouTube, and Instagram.
 """
 import logging
+import os
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -14,53 +15,118 @@ class PlatformPoster:
     """Service for posting content to social media platforms."""
 
     def __init__(self):
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(timeout=60.0)
 
     async def post_to_facebook(
         self,
         page_id: str,
         access_token: str,
         content: str,
+        image_path: Optional[str] = None,
         image_url: Optional[str] = None,
+        media_items: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
-        """Post content to Facebook page.
+        """Post content to Facebook page (supports text, links, single/multiple local photo or video uploads).
         
         Args:
             page_id: Facebook page ID
             access_token: Page access token
             content: Post content/caption
             image_url: Optional image URL to attach
+            media_items: Optional list of dictionaries with 'path' and 'kind'
             
         Returns:
             Dict with post_id and status
         """
+        import json
         try:
-            url = f"https://graph.facebook.com/v18.0/{page_id}/feed"
+            # Group connected media items
+            media_items = media_items or []
+            images = [item["path"] for item in media_items if item["kind"] == "image" and os.path.exists(item["path"])]
+            videos = [item["path"] for item in media_items if item["kind"] == "video" and os.path.exists(item["path"])]
             
-            data = {
-                "message": content,
-                "access_token": access_token,
-            }
-            
-            if image_url:
-                data["picture"] = image_url
-            
-            response = await self.client.post(url, data=data)
+            # Fallback to image_path if no media_items are set
+            if not images and not videos and image_path and os.path.exists(image_path):
+                images = [image_path]
+
+            if videos:
+                # 1. Post single video (first video) with caption
+                video_path = videos[0]
+                url = f"https://graph.facebook.com/v18.0/{page_id}/videos"
+                with open(video_path, "rb") as f:
+                    files = {
+                        "source": f
+                    }
+                    data = {
+                        "description": content,
+                        "access_token": access_token,
+                    }
+                    response = await self.client.post(url, data=data, files=files)
+            elif len(images) > 1:
+                # 2. Post multiple photos using unpublished uploads + attached_media
+                photo_ids = []
+                for path in images:
+                    url = f"https://graph.facebook.com/v18.0/{page_id}/photos"
+                    with open(path, "rb") as f:
+                        files = {
+                            "source": f
+                        }
+                        data = {
+                            "published": "false",
+                            "access_token": access_token,
+                        }
+                        response = await self.client.post(url, data=data, files=files)
+                        response.raise_for_status()
+                        photo_ids.append(response.json()["id"])
+                
+                # Publish the feed post with attached photos
+                url = f"https://graph.facebook.com/v18.0/{page_id}/feed"
+                attached_media = [{"media_fbid": pid} for pid in photo_ids]
+                data = {
+                    "message": content,
+                    "attached_media": json.dumps(attached_media),
+                    "access_token": access_token,
+                }
+                response = await self.client.post(url, data=data)
+            elif len(images) == 1:
+                # 3. Post single photo with caption
+                url = f"https://graph.facebook.com/v18.0/{page_id}/photos"
+                with open(images[0], "rb") as f:
+                    files = {
+                        "source": f
+                    }
+                    data = {
+                        "caption": content,
+                        "access_token": access_token,
+                    }
+                    response = await self.client.post(url, data=data, files=files)
+            else:
+                # 4. Post text/link only
+                url = f"https://graph.facebook.com/v18.0/{page_id}/feed"
+                data = {
+                    "message": content,
+                    "access_token": access_token,
+                }
+                if image_url:
+                    data["picture"] = image_url
+                response = await self.client.post(url, data=data)
+                
             response.raise_for_status()
-            
             result = response.json()
+            post_id = result.get("post_id") or result.get("id")
+            
             return {
                 "status": "success",
                 "platform": "facebook",
-                "post_id": result.get("id"),
-                "url": f"https://facebook.com/{result.get('id')}",
+                "post_id": post_id,
+                "url": f"https://facebook.com/{post_id}",
             }
         except Exception as e:
-            logger.error(f"Facebook posting error: {str(e)}")
+            logger.error(f"Facebook posting error: {str(e)}", exc_info=True)
             return {
                 "status": "failed",
                 "platform": "facebook",
-                "error": str(e),
+                "error": f"{type(e).__name__}: {str(e)}",
             }
 
     async def post_to_tiktok(
@@ -274,7 +340,9 @@ class PlatformPoster:
                 page_id=kwargs.get("page_id"),
                 access_token=token,
                 content=content,
+                image_path=kwargs.get("image_path"),
                 image_url=kwargs.get("image_url"),
+                media_items=kwargs.get("media_items"),
             )
         elif platform == "tiktok":
             return await self.post_to_tiktok(

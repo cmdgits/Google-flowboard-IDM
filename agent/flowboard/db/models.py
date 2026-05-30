@@ -240,6 +240,7 @@ class SocialBlock(SQLModel, table=True):
     
     # Status tracking
     status: str = "draft"  # draft | scheduled | posted | failed
+    facebook_post_id: Optional[str] = None  # Facebook post ID after posting
     
     # Metadata
     created_at: datetime = Field(default_factory=_utcnow)
