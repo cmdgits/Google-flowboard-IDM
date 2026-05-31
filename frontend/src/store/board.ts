@@ -143,6 +143,9 @@ const TYPE_TITLE: Record<NodeType, string> = {
   visual_asset: "Visual asset",
   Storyboard: "Storyboard",
   social_block: "Social Block",
+  video_assembly: "Video Assembly",
+  style_preset: "Style Preset",
+  story_script: "Story Script",
 };
 
 // ── Persisted active-board id ─────────────────────────────────────────────

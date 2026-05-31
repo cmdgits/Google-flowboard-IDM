@@ -22,6 +22,9 @@ NodeType = Literal[
     # for the template that drives gen_image.
     "Storyboard",
     "social_block",
+    "video_assembly",
+    "style_preset",
+    "story_script",
 ]
 NodeStatus = Literal["idle", "queued", "running", "done", "error"]
 
@@ -183,3 +186,186 @@ def delete_node(node_id: int):
             "detached_requests": len(orphan_requests),
             "detached_assets": len(orphan_assets),
         }
+
+
+class GenerateStoryRequest(BaseModel):
+    prompt: Optional[str] = None
+
+
+import json
+from flowboard.services.llm import registry, secrets
+
+@router.post("/story-script/{node_id}/generate")
+async def generate_story_script(node_id: int, body: GenerateStoryRequest):
+    """Segment a script/concept into multi-scene visual storyboard assets in database."""
+    with get_session() as s:
+        node = s.get(Node, node_id)
+        if not node:
+            raise HTTPException(404, "Node not found")
+        if node.type != "story_script":
+            raise HTTPException(400, "Node must be of type 'story_script'")
+            
+        board_id = node.board_id
+        prompt_text = body.prompt or node.data.get("prompt", "")
+        if not prompt_text or not prompt_text.strip():
+            raise HTTPException(400, "Story prompt cannot be empty")
+            
+        # Get LLM provider
+        saved_providers = secrets.read_active_providers()
+        provider_name = saved_providers.get("auto_prompt") or saved_providers.get("planner") or "gemini"
+        
+        provider = registry.get_provider(provider_name)
+        if provider is None or not await provider.is_available():
+            raise HTTPException(503, f"Configured LLM provider '{provider_name}' is not available. Please verify Settings.")
+            
+    # Call the LLM provider
+    system_prompt = (
+        "You are a master cinematic filmmaker and AI video story writer. "
+        "Analyze the provided short story or script concept and break it down into a highly descriptive, visual, multi-scene storyboard sequence (between 3 to 6 scenes depending on complexity). "
+        "For each scene, you must provide:\n"
+        "1. title: A concise scene title (in Vietnamese).\n"
+        "2. image_prompt: A highly detailed, descriptive, visual image generation prompt describing the starting frame of the scene in English. Include subject, lighting, colors, background, and environment.\n"
+        "3. video_prompt: A description of the motion and camera movement in the scene in English (e.g., 'slow camera zoom in on the character's face, hair gently blowing in the wind, cinematic motion').\n"
+        "4. narration: A Vietnamese voiceover narration text (max 2 sentences) that describes the storytelling or dialogue in this scene. Speak naturally in Vietnamese.\n\n"
+        "Your output MUST be a valid JSON array of objects. Do not include any markdown formatting (like ```json), explanations, or text outside the JSON array."
+    )
+    
+    full_prompt = f"{system_prompt}\n\nSTORY SCRIPT CONCEPT:\n{prompt_text}\n\nJSON OUTPUT:"
+    
+    try:
+        raw_result = await provider.run(full_prompt, timeout=60.0)
+        # Parse JSON
+        clean_json = raw_result.strip()
+        if clean_json.startswith("```json"):
+            clean_json = clean_json[7:]
+        if clean_json.endswith("```"):
+            clean_json = clean_json[:-3]
+        clean_json = clean_json.strip()
+        
+        scenes = json.loads(clean_json)
+        if not isinstance(scenes, list):
+            raise ValueError("LLM output is not a JSON array")
+            
+    except Exception as exc:
+        logger.error(f"LLM story generation failed: {exc}")
+        raise HTTPException(500, f"AI generation failed to produce valid scenes: {str(exc)}")
+        
+    # Now spawn nodes in DB
+    spawned_nodes = []
+    
+    with get_session() as s:
+        # Re-fetch node inside transaction
+        node = s.get(Node, node_id)
+        if not node:
+            raise HTTPException(404, "Node not found")
+            
+        # Update story_script node status to running
+        node.status = "running"
+        s.add(node)
+        s.commit()
+        
+    try:
+        with get_session() as s:
+            # Re-fetch node inside transaction
+            node = s.get(Node, node_id)
+            
+            # 1. Find connected video_assembly node (downstream of this story_script node)
+            edges = s.exec(select(Edge).where(Edge.source_id == node_id)).all()
+            assembly_node_id = None
+            for e in edges:
+                target_node = s.get(Node, e.target_id)
+                if target_node and target_node.type == "video_assembly":
+                    assembly_node_id = target_node.id
+                    break
+                    
+            # If no assembly node connected, let's look for any assembly node on the same board
+            if not assembly_node_id:
+                assembly_node = s.exec(
+                    select(Node).where(Node.board_id == board_id, Node.type == "video_assembly")
+                ).first()
+                if assembly_node:
+                    assembly_node_id = assembly_node.id
+                    
+            base_x = node.x
+            base_y = node.y
+            
+            for i, scene in enumerate(scenes):
+                # Spawn image node
+                img_short_id = generate_unique_short_id(s, board_id)
+                img_node = Node(
+                    board_id=board_id,
+                    short_id=img_short_id,
+                    type="image",
+                    x=base_x + (i + 1) * 320,
+                    y=base_y - 100,
+                    data={
+                        "title": scene.get("title", f"Cảnh {i+1} - Ảnh"),
+                        "prompt": scene.get("image_prompt", ""),
+                        "aspectRatio": "IMAGE_ASPECT_RATIO_LANDSCAPE"
+                    },
+                    status="idle"
+                )
+                s.add(img_node)
+                s.flush()
+                
+                # Spawn video node
+                vid_short_id = generate_unique_short_id(s, board_id)
+                vid_node = Node(
+                    board_id=board_id,
+                    short_id=vid_short_id,
+                    type="video",
+                    x=base_x + (i + 1) * 320,
+                    y=base_y + 120,
+                    data={
+                        "title": scene.get("title", f"Cảnh {i+1} - Clip"),
+                        "prompt": scene.get("video_prompt", ""),
+                        "narration": scene.get("narration", ""),
+                        "aspectRatio": "VIDEO_ASPECT_RATIO_LANDSCAPE"
+                    },
+                    status="idle"
+                )
+                s.add(vid_node)
+                s.flush()
+                
+                # Connect image to video
+                edge1 = Edge(
+                    board_id=board_id,
+                    source_id=img_node.id,
+                    target_id=vid_node.id,
+                    kind="ref"
+                )
+                s.add(edge1)
+                
+                # Connect video to assembly
+                if assembly_node_id:
+                    edge2 = Edge(
+                        board_id=board_id,
+                        source_id=vid_node.id,
+                        target_id=assembly_node_id,
+                        kind="ref"
+                    )
+                    s.add(edge2)
+                    
+                spawned_nodes.append(img_node)
+                spawned_nodes.append(vid_node)
+                
+            # Update story_script node status to done and save prompt
+            node.status = "done"
+            node.data = {**dict(node.data), "prompt": prompt_text}
+            s.add(node)
+            s.commit()
+            
+            return {
+                "ok": True,
+                "scenes_count": len(scenes),
+                "spawned_nodes": [n.id for n in spawned_nodes]
+            }
+    except Exception as e:
+        with get_session() as s:
+            node = s.get(Node, node_id)
+            if node:
+                node.status = "error"
+                s.add(node)
+                s.commit()
+        raise HTTPException(500, f"Error spawning storyboard nodes: {str(e)}")
+

@@ -1178,7 +1178,9 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 5px;
-  width: 80px;
+  padding: 0 12px;
+  min-width: 80px;
+  width: auto;
   height: 32px;
   justify-content: center;
   font-size: 12px;
@@ -6652,3 +6654,348 @@ button:disabled {
   box-shadow: none;
   transform: none;
 }
+
+/* ==========================================================================
+   Video Assembly Node & Dialog Styles
+   ========================================================================== */
+
+.video-assembly-dialog {
+  animation: dialog-fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Empty input list styling */
+.video-assembly__empty-list {
+  background: var(--panel-high);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.video-assembly__empty-list span {
+  font-weight: 500;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.video-assembly__empty-list p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Clip list container */
+.video-assembly__clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar for clip list */
+.video-assembly__clip-list::-webkit-scrollbar {
+  width: 6px;
+}
+.video-assembly__clip-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.video-assembly__clip-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.video-assembly__clip-list::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Clip list item */
+.video-assembly__clip-item {
+  display: flex;
+  align-items: center;
+  background: var(--panel-high);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  gap: 12px;
+  transition: all 0.15s ease;
+}
+
+.video-assembly__clip-item:hover {
+  border-color: rgba(124, 92, 255, 0.4);
+  background: rgba(124, 92, 255, 0.03);
+}
+
+.video-assembly__clip-index {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  width: 16px;
+  text-align: center;
+}
+
+/* Thumbnail preview styling */
+.video-assembly__clip-thumb-container {
+  width: 80px;
+  height: 45px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #000;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.video-assembly__clip-thumb-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.video-assembly__clip-thumb-placeholder {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* Clip metadata */
+.video-assembly__clip-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.video-assembly__clip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.video-assembly__clip-prompt {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Clip sorting actions */
+.video-assembly__clip-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.video-assembly__sort-btn {
+  background: var(--panel-higher);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.12s ease;
+  padding: 0;
+}
+
+.video-assembly__sort-btn:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--text);
+}
+
+.video-assembly__sort-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+/* Audio Uploader loader */
+.video-assembly__audio-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Spinner */
+.video-assembly__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-bottom-color: var(--accent);
+  border-radius: 50%;
+  animation: video-assembly-spin 0.65s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes video-assembly-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error message styling */
+.video-assembly__error-message {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #fca5a5;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.video-assembly__error-message span {
+  font-weight: 600;
+}
+
+.video-assembly__error-message p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+/* Sleek compact audio styles */
+.video-assembly__audio-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.video-assembly__audio-import-btn {
+  background: rgba(124, 92, 255, 0.1);
+  border: 1px solid rgba(124, 92, 255, 0.3);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.video-assembly__audio-import-btn:hover:not(:disabled) {
+  background: rgba(124, 92, 255, 0.2) !important;
+  border-color: rgba(124, 92, 255, 0.5) !important;
+  transform: translateY(-1px);
+}
+
+.video-assembly__audio-import-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.video-assembly__audio-compact {
+  display: inline-flex;
+  align-items: center;
+  background: var(--panel-high);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  gap: 8px;
+  max-width: 320px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s ease;
+}
+
+.video-assembly__audio-compact:hover {
+  border-color: rgba(124, 92, 255, 0.3);
+}
+
+.video-assembly__audio-name-compact {
+  font-size: 11px;
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.video-assembly__audio-play-compact-btn,
+.video-assembly__audio-remove-compact-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s ease, transform 0.1s ease;
+}
+
+.video-assembly__audio-play-compact-btn:hover {
+  color: var(--text);
+  transform: scale(1.1);
+}
+
+.video-assembly__audio-remove-compact-btn:hover {
+  color: var(--error);
+  transform: scale(1.1);
+}
+
+/* Drag & Drop clip re-ordering */
+.video-assembly__clip-drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 0 4px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.video-assembly__clip-item:hover .video-assembly__clip-drag-handle {
+  color: var(--accent);
+}
+
+.video-assembly__clip-item {
+  cursor: grab;
+}
+
+.video-assembly__clip-item:active {
+  cursor: grabbing;
+}
+
+.video-assembly__clip-item--dragging {
+  opacity: 0.35;
+  border: 1px dashed var(--accent);
+  background: rgba(124, 92, 255, 0.08) !important;
+  cursor: grabbing !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.video-assembly__clip-item--dragging * {
+  pointer-events: none;
+}
+
+

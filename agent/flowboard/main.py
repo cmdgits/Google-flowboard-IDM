@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from flowboard.config import WS_HOST
 from flowboard.db import get_session, init_db
 from flowboard.db.models import Request
-from flowboard.routes import activity, auth, boards, chat, edges, flow_projects, llm, media, nodes, oauth, plans, projects, prompt, social, social_block, upload, vision
+from flowboard.routes import activity, auth, boards, chat, edges, flow_projects, llm, media, nodes, oauth, plans, projects, prompt, social, social_block, upload, vision, video_assembly
 from flowboard.routes import references as references_route
 from flowboard.routes import requests as requests_route
 from flowboard.services.flow_client import flow_client
@@ -160,6 +160,7 @@ app.include_router(social.router)
 app.include_router(oauth.router)
 app.include_router(social_block.router)
 app.include_router(activity.router)
+app.include_router(video_assembly.router)
 
 
 @app.get("/api/health")

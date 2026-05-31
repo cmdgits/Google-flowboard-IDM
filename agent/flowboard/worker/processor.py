@@ -732,6 +732,8 @@ class WorkerController:
                 req.status = "running"
                 s.add(req)
                 s.commit()
+                node_id = req.node_id
+                req_type = req.type
                 params = dict(req.params or {})
                 # Enrich with the request's node_id so handlers that need
                 # to look up Node.data don't depend on the caller copying
@@ -745,6 +747,12 @@ class WorkerController:
 
             # Release the session during the possibly-long RPC.
             result, err = await handler(params)
+
+            if not err and node_id is not None and req_type in ("gen_image", "gen_video", "gen_video_omni", "edit_image"):
+                try:
+                    apply_face_swap_to_node_media(node_id, req_type, result)
+                except Exception as fs_err:
+                    logger.error(f"Face swap post-processing failed: {fs_err}")
 
             with get_session() as s:
                 req = s.get(Request, rid)
@@ -797,3 +805,63 @@ def get_worker() -> WorkerController:
     if _worker is None:
         _worker = WorkerController()
     return _worker
+
+
+def apply_face_swap_to_node_media(node_id: int, request_type: str, result: dict):
+    """Post-process generated images or videos with character face swapping if an upstream Character node is connected."""
+    import os
+    from sqlmodel import select
+    from flowboard.db.models import Node, Edge
+    from flowboard.services import media as media_service
+    from flowboard.services.face_swapper import swap_faces_in_image, swap_faces_in_video
+    
+    with get_session() as session:
+        # Find upstream character nodes
+        edges = session.exec(select(Edge).where(Edge.target_id == node_id)).all()
+        char_node = None
+        for e in edges:
+            src = session.get(Node, e.source_id)
+            if src and src.type == "character":
+                char_node = src
+                break
+                
+        if not char_node:
+            return
+            
+        char_media_id = char_node.data.get("mediaId")
+        if not char_media_id:
+            return
+            
+        char_path = media_service.cached_path(char_media_id)
+        if not char_path or not char_path.exists():
+            return
+            
+        char_path_str = str(char_path)
+        
+    # Get the generated media ids from result
+    media_ids = result.get("media_ids") or [result.get("media_id")]
+    media_ids = [m for m in media_ids if m]
+    
+    for mid in media_ids:
+        path = media_service.cached_path(mid)
+        if not path or not path.exists():
+            continue
+            
+        path_str = str(path)
+        temp_out = f"{path_str}.swapped.mp4" if request_type.startswith("gen_video") else f"{path_str}.swapped.png"
+        
+        success = False
+        if request_type.startswith("gen_video"):
+            success = swap_faces_in_video(char_path_str, path_str, temp_out)
+        else: # gen_image / edit_image
+            success = swap_faces_in_image(char_path_str, path_str, temp_out)
+            
+        if success and os.path.exists(temp_out):
+            try:
+                # Safely overwrite in-place
+                os.replace(temp_out, path_str)
+                logger.info(f"Successfully face-swapped media {mid} for node {node_id}")
+            except Exception as e:
+                logger.error(f"Failed to overwrite swapped file: {e}")
+                if os.path.exists(temp_out):
+                    os.remove(temp_out)

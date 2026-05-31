@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useBoardStore, type FlowboardNodeData, type FlowNode } from "../store/board";
 import { useGenerationStore } from "../store/generation";
@@ -9,6 +10,7 @@ import {
   normaliseStoryboardGrid,
   resolveStoryboardLayout,
 } from "../lib/storyboardPrompt";
+import { VideoAssemblyDialog } from "../components/VideoAssemblyDialog";
 
 const ICON: Record<string, string> = {
   character: "◎",
@@ -18,6 +20,9 @@ const ICON: Record<string, string> = {
   note: "✎",
   visual_asset: "◇",
   social_block: "📱",
+  video_assembly: "🎬",
+  style_preset: "🎨",
+  story_script: "📝",
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -1018,6 +1023,18 @@ function VideoBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
     );
   }
 
+  const narration = (data.narration as string) || "";
+
+  const handleNarrationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    useBoardStore.getState().updateNodeData(rfId, { narration: val });
+
+    const dbId = parseInt(rfId, 10);
+    if (!isNaN(dbId)) {
+      void patchNode(dbId, { data: { narration: val } });
+    }
+  };
+
   return (
     <div className="node-body node-body--video">
       <div className={`video-grid video-grid--${tileCount}`}>
@@ -1031,6 +1048,26 @@ function VideoBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
           {data.error}
         </p>
       )}
+      
+      {/* Inline Narration Field */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, borderTop: "1px solid var(--border)", paddingTop: 6 }}>
+        <span style={{ fontSize: 10, color: "var(--muted)" }} title="Lời thuyết minh AI">🗣️</span>
+        <input
+          type="text"
+          value={narration}
+          onChange={handleNarrationChange}
+          placeholder="Thuyết minh AI cho clip..."
+          style={{
+            flex: 1,
+            background: "none",
+            border: "none",
+            fontSize: 10,
+            color: "var(--text)",
+            outline: "none",
+            padding: "2px 0",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -1473,6 +1510,12 @@ function NodeBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
       return <StoryboardBody rfId={rfId} data={data} />;
     case "social_block":
       return <SocialBlockNodeBody rfId={rfId} data={data} />;
+    case "video_assembly":
+      return <VideoAssemblyBody rfId={rfId} data={data} />;
+    case "style_preset":
+      return <StylePresetBody rfId={rfId} data={data} />;
+    case "story_script":
+      return <StoryScriptBody rfId={rfId} data={data} />;
   }
 }
 
@@ -1539,6 +1582,245 @@ function SocialBlockNodeBody({ rfId, data }: { rfId: string; data: FlowboardNode
           ▶ Generate
         </button>
       </div>
+    </div>
+  );
+}
+
+function VideoAssemblyBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
+  const mediaId = data.mediaId;
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  const openEditor = () => {
+    setEditorOpen(true);
+  };
+
+  return (
+    <div className="node-body node-body--video-assembly" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Visual Preview */}
+      <div className="video-assembly__preview" style={{ position: "relative", minHeight: 120, background: "var(--panel-high)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        {mediaId ? (
+          <VideoTile
+            mediaId={mediaId}
+            isProcessing={false}
+            isError={false}
+            alt={data.title}
+          />
+        ) : (
+          <div className="video-assembly__empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: 13, padding: 20, textAlign: "center" }}>
+            <span>🎬 Video Assembly</span>
+            <span style={{ fontSize: 11, opacity: 0.8 }}>Ghép nối video & lồng nhạc</span>
+          </div>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          type="button"
+          className="visual-asset__action"
+          onClick={(e) => { e.stopPropagation(); openEditor(); }}
+          title="Thiết lập video ghép nối"
+          style={{ flex: 1 }}
+        >
+          ▶ Generate
+        </button>
+      </div>
+
+      {/* Editor Dialog */}
+      {editorOpen && createPortal(
+        <VideoAssemblyDialog
+          rfId={rfId}
+          data={data}
+          onClose={() => setEditorOpen(false)}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+const STYLE_PRESETS = [
+  { id: "hollywood", label: "🎬 Hollywood" },
+  { id: "ghibli", label: "🎨 Ghibli Art" },
+  { id: "pixar", label: "🧸 Pixar 3D" },
+  { id: "cyberpunk", label: "⚡ Cyberpunk" },
+  { id: "comic", label: "✍️ Comic Book" },
+  { id: "noir", label: "📽️ Retro Noir" },
+];
+
+function StylePresetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
+  const activeStyleId = (data.activeStyleId as string) || "hollywood";
+
+  const handleSelectStyle = (style: typeof STYLE_PRESETS[0]) => {
+    // 1. Cập nhật Zustand Store cục bộ
+    useBoardStore.getState().updateNodeData(rfId, {
+      activeStyleId: style.id,
+      title: `Style: ${style.label.substring(3)}`,
+    });
+
+    // 2. Đồng bộ trực tiếp vào database backend
+    const dbId = parseInt(rfId, 10);
+    if (!isNaN(dbId)) {
+      void patchNode(dbId, {
+        data: {
+          activeStyleId: style.id,
+          title: `Style: ${style.label.substring(3)}`,
+        },
+      });
+    }
+  };
+
+  return (
+    <div className="node-body style-preset-body" style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0" }}>
+      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em" }}>
+        Chọn Phong cách phim:
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+        {STYLE_PRESETS.map((style) => {
+          const active = style.id === activeStyleId;
+          return (
+            <button
+              key={style.id}
+              type="button"
+              onClick={() => handleSelectStyle(style)}
+              style={{
+                background: active ? "rgba(124, 92, 255, 0.15)" : "var(--panel-high)",
+                border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
+                color: active ? "var(--accent)" : "var(--text)",
+                borderRadius: 6,
+                padding: "6px 4px",
+                fontSize: 10,
+                fontWeight: active ? 600 : 400,
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all 0.15s ease",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis"
+              }}
+              title={style.label}
+            >
+              {style.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StoryScriptBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
+  const prompt = (data.prompt as string) || "";
+  const [localPrompt, setLocalPrompt] = useState(prompt);
+  const [generating, setGenerating] = useState(data.status === "running");
+
+  useEffect(() => {
+    setLocalPrompt(prompt);
+  }, [prompt]);
+
+  const handleBlur = () => {
+    useBoardStore.getState().updateNodeData(rfId, { prompt: localPrompt });
+    const dbId = parseInt(rfId, 10);
+    if (!isNaN(dbId)) {
+      void patchNode(dbId, { data: { prompt: localPrompt } });
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!localPrompt.trim()) {
+      alert("Vui lòng nhập nội dung kịch bản / cốt truyện.");
+      return;
+    }
+
+    setGenerating(true);
+    useBoardStore.getState().updateNodeData(rfId, { status: "running" });
+
+    try {
+      const dbId = parseInt(rfId, 10);
+      const response = await fetch(`/api/nodes/story-script/${dbId}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: localPrompt }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${response.status}`);
+      }
+
+      await response.json();
+      
+      // Update state to done
+      useBoardStore.getState().updateNodeData(rfId, { status: "done" });
+      
+      // Refresh the board to display the newly spawned nodes immediately!
+      await useBoardStore.getState().refreshBoardState();
+    } catch (err: any) {
+      console.error("Story generation error:", err);
+      alert(`Lỗi phân tách kịch bản: ${err.message || err}`);
+      useBoardStore.getState().updateNodeData(rfId, { status: "error" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="node-body story-script-body" style={{ display: "flex", flexDirection: "column", gap: 8, height: "100%" }}>
+      <textarea
+        className="node-card__textarea nodrag"
+        placeholder="Nhập cốt truyện hoặc ý tưởng phim..."
+        value={localPrompt}
+        onChange={(e) => setLocalPrompt(e.target.value)}
+        onBlur={handleBlur}
+        disabled={generating}
+        style={{
+          flex: 1,
+          minHeight: 65,
+          background: "var(--panel-high)",
+          border: "1px solid var(--border)",
+          borderRadius: 6,
+          color: "var(--text)",
+          padding: "6px 8px",
+          fontSize: 11,
+          lineHeight: 1.4,
+          resize: "none",
+          fontFamily: "inherit"
+        }}
+      />
+      <button
+        type="button"
+        className="visual-asset__action"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleGenerate();
+        }}
+        disabled={generating || !localPrompt.trim()}
+        style={{
+          background: "linear-gradient(135deg, #7c5cff 0%, #a05cff 100%)",
+          color: "#fff",
+          border: "none",
+          fontWeight: 600,
+          padding: "6px 0",
+          borderRadius: 6,
+          cursor: "pointer",
+          fontSize: 11,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6
+        }}
+      >
+        {generating ? (
+          <>
+            <div className="video-assembly__spinner" style={{ width: 12, height: 12, borderColor: "#fff", borderBottomColor: "transparent" }} />
+            Đang phân cảnh...
+          </>
+        ) : (
+          <>
+            <span>✦</span> Tự động phân cảnh
+          </>
+        )}
+      </button>
     </div>
   );
 }

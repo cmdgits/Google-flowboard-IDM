@@ -5,6 +5,27 @@ import { useSettingsStore } from "./settings";
 
 type PollEntry = { requestId: number; timerId: ReturnType<typeof setTimeout> | null };
 
+const STYLE_PROMPTS: Record<string, { prompt: string }> = {
+  hollywood: {
+    prompt: ", 35mm anamorphic lens, hollywood cinematic film style, dramatic lighting, color graded, highly detailed, photorealistic"
+  },
+  ghibli: {
+    prompt: ", Studio Ghibli anime style, hand-drawn look, detailed watercolor scenery, aesthetic retro anime, nostalgic, masterfully crafted art"
+  },
+  pixar: {
+    prompt: ", Pixar 3D animation style, cute character design, soft glossy lighting, clay texture, vibrant colors, detailed models"
+  },
+  cyberpunk: {
+    prompt: ", cyberpunk cinematic neon style, futuristic sci-fi movie scene, blue and purple neon glowing highlights, rain reflections, highly detailed"
+  },
+  comic: {
+    prompt: ", classic comic book style, hand-drawn ink lines, retro print halftone texture, bold colors, action pose"
+  },
+  noir: {
+    prompt: ", vintage 1940s film noir style, monochrome retro black and white cinematic, dramatic high contrast shadows, classic vintage cinematography"
+  }
+};
+
 interface GenerationState {
   active: Record<string, PollEntry>;
   openDialog: { rfId: string | null; prompt: string };
@@ -194,6 +215,28 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       mediaId: undefined,
     });
 
+    // Resolve connected Style Presets and append styles to prompt
+    let finalPrompt = opts.prompt;
+    let finalPrompts = opts.prompts;
+
+    const { nodes, edges } = useBoardStore.getState();
+    const stylePresetEdges = edges.filter((e) => e.target === rfId);
+    const stylePresetNodeIds = stylePresetEdges.map((e) => e.source);
+    const stylePresetNode = nodes.find(
+      (n) => stylePresetNodeIds.includes(n.id) && n.data.type === "style_preset"
+    );
+
+    if (stylePresetNode) {
+      const activeStyleId = (stylePresetNode.data.activeStyleId as string) || "hollywood";
+      const preset = STYLE_PROMPTS[activeStyleId];
+      if (preset) {
+        finalPrompt = `${opts.prompt}${preset.prompt}`;
+        if (opts.prompts && opts.prompts.length > 0) {
+          finalPrompts = opts.prompts.map((p) => `${p}${preset.prompt}`);
+        }
+      }
+    }
+
     // Create request
     const kind = opts.kind ?? "image";
     let reqDto;
@@ -229,7 +272,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             type: "gen_video_omni",
             node_id: isNaN(nodeDbId) ? undefined : nodeDbId,
             params: {
-              prompt: opts.prompt,
+              prompt: finalPrompt,
               project_id: projectId,
               ref_media_ids: ingredients,
               duration_s: settings.omniFlashDuration,
@@ -252,7 +295,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
             return;
           }
           const videoParams: Record<string, unknown> = {
-            prompt: opts.prompt,
+            prompt: finalPrompt,
             project_id: projectId,
             aspect_ratio: opts.aspectRatio ?? "VIDEO_ASPECT_RATIO_LANDSCAPE",
             // Tier precedence: explicit caller arg > auto-detected from
@@ -276,7 +319,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       } else {
         const refMediaIds = collectUpstreamRefMediaIds(rfId);
         const params: Record<string, unknown> = {
-          prompt: opts.prompt,
+          prompt: finalPrompt,
           project_id: projectId,
           aspect_ratio: opts.aspectRatio ?? "IMAGE_ASPECT_RATIO_LANDSCAPE",
           paygate_tier:
@@ -292,8 +335,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
         // Per-variant prompts: when present, each variant uses its own
         // text instead of all sharing `params.prompt`. Backend falls back
         // to single prompt when missing/short.
-        if (opts.prompts && opts.prompts.length > 0) {
-          params.prompts = opts.prompts;
+        if (finalPrompts && finalPrompts.length > 0) {
+          params.prompts = finalPrompts;
         }
         reqDto = await createRequest({
           type: "gen_image",

@@ -29,6 +29,9 @@ const nodeTypes = {
   visual_asset: NodeCard,
   Storyboard: NodeCard,
   social_block: NodeCard,
+  video_assembly: NodeCard,
+  style_preset: NodeCard,
+  story_script: NodeCard,
 };
 
 // Single edge type used for everything — VariantEdge renders the

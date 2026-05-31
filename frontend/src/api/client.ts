@@ -110,7 +110,7 @@ export function getHealth() {
 
 // ── DTOs ────────────────────────────────────────────────────────────────────
 
-export type NodeType = "character" | "image" | "video" | "prompt" | "note" | "visual_asset" | "Storyboard" | "social_block";
+export type NodeType = "character" | "image" | "video" | "prompt" | "note" | "visual_asset" | "Storyboard" | "social_block" | "video_assembly" | "style_preset" | "story_script";
 export type NodeStatus = "idle" | "queued" | "running" | "done" | "error";
 
 export interface Board {
