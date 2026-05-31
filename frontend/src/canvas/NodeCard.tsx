@@ -1646,6 +1646,9 @@ const STYLE_PRESETS = [
   { id: "cyberpunk", label: "⚡ Cyberpunk" },
   { id: "comic", label: "✍️ Comic Book" },
   { id: "noir", label: "📽️ Retro Noir" },
+  { id: "real_life", label: "📷 Đời Sống" },
+  { id: "ancient_china", label: "⛩️ Cổ Trang" },
+  { id: "xuanhuan", label: "✨ Huyền Huyễn" },
 ];
 
 function StylePresetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData }) {
@@ -1671,11 +1674,11 @@ function StylePresetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
   };
 
   return (
-    <div className="node-body style-preset-body" style={{ display: "flex", flexDirection: "column", gap: 6, padding: "4px 0" }}>
-      <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em" }}>
+    <div className="node-body style-preset-body" style={{ display: "flex", flexDirection: "column", gap: 5, padding: "2px 0" }}>
+      <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em" }}>
         Chọn Phong cách phim:
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
         {STYLE_PRESETS.map((style) => {
           const active = style.id === activeStyleId;
           return (
@@ -1687,9 +1690,9 @@ function StylePresetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
                 background: active ? "rgba(124, 92, 255, 0.15)" : "var(--panel-high)",
                 border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
                 color: active ? "var(--accent)" : "var(--text)",
-                borderRadius: 6,
-                padding: "6px 4px",
-                fontSize: 10,
+                borderRadius: 5,
+                padding: "5px 2px",
+                fontSize: 9,
                 fontWeight: active ? 600 : 400,
                 cursor: "pointer",
                 textAlign: "center",

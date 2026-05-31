@@ -23,6 +23,15 @@ const STYLE_PROMPTS: Record<string, { prompt: string }> = {
   },
   noir: {
     prompt: ", vintage 1940s film noir style, monochrome retro black and white cinematic, dramatic high contrast shadows, classic vintage cinematography"
+  },
+  real_life: {
+    prompt: ", photorealistic real life style, daily life cinematography, natural soft lighting, high-fidelity details, sharp focus, captured on professional 8k camera"
+  },
+  ancient_china: {
+    prompt: ", ancient Chinese historical film style, traditional Hanfu costume, beautiful cinematic dynamic lighting, wuxia aesthetic style, atmospheric, highly detailed"
+  },
+  xuanhuan: {
+    prompt: ", Chinese Xuanhuan fantasy style, glowing cultivation magic aura, epic mythical floating mountains, hyperdetailed CGI, celestial color grading, majestic"
   }
 };
 

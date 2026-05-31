@@ -347,6 +347,9 @@ STYLE_PROMPTS = {
     "cyberpunk": ", cyberpunk cinematic neon style, futuristic sci-fi movie scene, blue and purple neon glowing highlights, rain reflections, highly detailed",
     "comic": ", classic comic book style, hand-drawn ink lines, retro print halftone texture, bold colors, action pose",
     "noir": ", vintage 1940s film noir style, monochrome retro black and white cinematic, dramatic high contrast shadows, classic vintage cinematography",
+    "real_life": ", photorealistic real life style, daily life cinematography, natural soft lighting, high-fidelity details, sharp focus, captured on professional 8k camera",
+    "ancient_china": ", ancient Chinese historical film style, traditional Hanfu costume, beautiful cinematic dynamic lighting, wuxia aesthetic style, atmospheric, highly detailed",
+    "xuanhuan": ", Chinese Xuanhuan fantasy style, glowing cultivation magic aura, epic mythical floating mountains, hyperdetailed CGI, celestial color grading, majestic",
 }
 
 
