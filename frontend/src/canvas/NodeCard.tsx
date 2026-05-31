@@ -1604,6 +1604,7 @@ function VideoAssemblyBody({ rfId, data }: { rfId: string; data: FlowboardNodeDa
             isProcessing={false}
             isError={false}
             alt={data.title}
+            onClick={() => useGenerationStore.getState().openResultViewer(rfId, 0)}
           />
         ) : (
           <div className="video-assembly__empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: 13, padding: 20, textAlign: "center" }}>
