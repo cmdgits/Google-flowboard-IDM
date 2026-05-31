@@ -5,7 +5,6 @@ import { useGenerationStore } from "../store/generation";
 import { mediaUrl, patchEdge, patchNode, uploadImage, uploadImageFromUrl } from "../api/client";
 import { requestAutoBrief } from "../api/autoBrief";
 import { useReferencesStore } from "../store/references";
-import { SchedulePostModal } from "../components/SchedulePostModal";
 import {
   normaliseStoryboardGrid,
   resolveStoryboardLayout,
@@ -1047,8 +1046,6 @@ function VisualAssetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
   const [refMediaId, setRefMediaId] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkValue, setLinkValue] = useState("");
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const dbId = parseInt(rfId, 10);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const refInputRef = useRef<HTMLInputElement>(null);
 
@@ -1293,20 +1290,7 @@ function VisualAssetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
           ★ Save
         </button>
       )}
-      {!isProcessing && mediaId && (
-        <button
-          type="button"
-          className="visual-asset__action"
-          onClick={(e) => {
-            e.stopPropagation();
-            setScheduleOpen(true);
-          }}
-          title="Schedule this asset to post on social media"
-          aria-label="Schedule to social media"
-        >
-          📅 Schedule
-        </button>
-      )}
+
       {refineOpen && (
         <div className="visual-asset__refine-panel" role="region" aria-label="Refine">
           <textarea
@@ -1346,15 +1330,8 @@ function VisualAssetBody({ rfId, data }: { rfId: string; data: FlowboardNodeData
            />
          </div>
        )}
-       {error && <p className="visual-asset__error">{error}</p>}
-       {!isNaN(dbId) && mediaId && (
-         <SchedulePostModal
-           assetId={dbId}
-           open={scheduleOpen}
-           onClose={() => setScheduleOpen(false)}
-         />
-       )}
-     </div>
+        {error && <p className="visual-asset__error">{error}</p>}
+      </div>
    );
  }
 
